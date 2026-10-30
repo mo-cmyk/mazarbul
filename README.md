@@ -41,6 +41,12 @@ And it runs headless. One lean binary gives you a CLI and an MCP server, with no
 curl -fsSL https://raw.githubusercontent.com/mo-cmyk/mazarbul/main/scripts/install.sh | sh
 ```
 
+Or with Homebrew (macOS and Linux):
+
+```bash
+brew install mo-cmyk/mazarbul/maz
+```
+
 The installer verifies the download checksum, places `maz` plus its bundled engine library and man pages, and sets up a local model provider (it installs [Ollama](https://ollama.com) and pulls the embedding and chat models `maz` needs, unless you opt out with `--no-ollama`). Then run `maz init`. For a remote chat provider instead of local models, run `maz init --provider anthropic --api-key ...`.
 
 <details>
