@@ -135,6 +135,21 @@ jobs:
           echo "relocated maz --version: $out"
           printf '%s\n' "$out" | grep -Fq -- "$VERSION" || {
             echo "version mismatch in relocated binary" >&2; exit 1; }
+          # --version never touches the engine, so it cannot catch a header /
+          # library ABI mismatch (go-ladybug v0.13.1 vendored a header that
+          # disagreed with engine v0.16.1 and smashed the stack on the first
+          # open). Initialise a throwaway data dir and open the graph store
+          # for real: init (no network, no keychain, no daemon), then doctor,
+          # whose ladybug.open check opens the DB and runs RETURN 1.
+          data="$(mktemp -d)"
+          export MAZ_DATA_DIR="$data" MAZ_NO_UPDATE_CHECK=1
+          /tmp/relocate/bin/maz init --yes --embed none --provider ollama \
+            --daemon off --no-identity --output json
+          doctor="$(/tmp/relocate/bin/maz doctor --output json || true)"
+          printf '%s\n' "$doctor"
+          printf '%s\n' "$doctor" | jq -e \
+            '[.. | objects | select(.name? == "ladybug.open")][0].status == "ok"' >/dev/null || {
+            echo "relocated binary could not open the graph store" >&2; exit 1; }
 
       - name: Pack archive
         id: pack

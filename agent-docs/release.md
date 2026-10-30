@@ -55,7 +55,9 @@ Each job: `mise run setup` (fetches the native lib) → `go build` with
 version/commit/date ldflags → generate man pages + completions from the fresh
 binary → `release-rpath.sh` → stage (`maz`, `lib/`, `man/`, `completions/`,
 `LICENSE`, `NOTICE`, `README.md`) → **relocate-and-run smoke test** (copy to a clean dir
-with no module-cache rpath, run `maz --version`, assert the version) → `tar.gz`.
+with no module-cache rpath, run `maz --version`, assert the version, then
+`maz init` a temp data dir and assert `maz doctor` reports `ladybug.open` ok, so
+the engine is actually loaded and a DB opened) → `tar.gz`.
 
 **`assemble` job**: download all archives → `sha256sum > checksums.txt` →
 upload combined dist; if `publish`, `gh release upload <tag>`.
