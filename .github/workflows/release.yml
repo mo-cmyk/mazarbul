@@ -41,12 +41,12 @@ jobs:
           - { goos: linux, goarch: arm64, runner: ubuntu-24.04-arm }
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0 # tags, for `git describe` snapshot versioning
 
       - name: Install mise
-        uses: jdx/mise-action@v4
+        uses: jdx/mise-action@v5
         with:
           install: true
           cache: true
@@ -154,7 +154,7 @@ jobs:
           echo "archive=${name}.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Upload archive artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: archive-${{ matrix.goos }}-${{ matrix.goarch }}
           path: ${{ steps.pack.outputs.archive }}
@@ -169,7 +169,7 @@ jobs:
       contents: write # gh release upload (only exercised when publish=true)
     steps:
       - name: Download archives
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: archive-*
           merge-multiple: true
@@ -183,7 +183,7 @@ jobs:
           echo "== checksums.txt ==" && cat checksums.txt
 
       - name: Upload combined dist (snapshot inspection)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-dist
           path: dist/*
