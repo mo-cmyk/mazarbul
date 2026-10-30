@@ -1,0 +1,21 @@
+{
+  "mentions": [
+    {
+      "kind": "person",
+      "displayName": "Omar",
+      "extractionText": "Omar",
+      "sourceSpan": {"startChar": 0, "endChar": 4},
+      "groundingScore": 1.0
+    },
+    {
+      "kind": "project",
+      "displayName": "Phoenix",
+      "extractionText": "Phoenix",
+      "sourceSpan": {"startChar": 16, "endChar": 23},
+      "groundingScore": 1.0
+    }
+  ],
+  "relations": [
+    {"subjectMentionIdx": 0, "predicate": "member_of", "objectMentionIdx": 1}
+  ]
+}

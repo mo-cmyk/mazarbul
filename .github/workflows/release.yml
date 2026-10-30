@@ -1,0 +1,205 @@
+name: release
+
+# Builds the portable `maz` archives natively per-OS and assembles a single
+# release. `maz` CGO-links the LadybugDB engine as a *dynamic* library and
+# cross-compilation is not viable, so each platform is built on its own native
+# runner (no goreleaser: its prebuilt/split-merge unification is Pro-only).
+#
+# Two entry points:
+#   - workflow_dispatch: snapshot validation. Builds + archives all targets and
+#     uploads them as workflow artifacts for inspection. Publishes nothing.
+#   - workflow_call: invoked (gated) by release-please.yml once a release is
+#     cut; with publish=true it attaches the archives + checksums to the tag's
+#     GitHub Release.
+on:
+  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      publish:
+        description: "Attach archives + checksums to the release for `tag`."
+        type: boolean
+        default: false
+      tag:
+        description: "Release tag to build and (optionally) publish to."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: darwin, goarch: arm64, runner: macos-latest }
+          - { goos: darwin, goarch: amd64, runner: macos-15-intel } # GitHub-hosted Intel runner
+          - { goos: linux, goarch: amd64, runner: ubuntu-latest }
+          - { goos: linux, goarch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # tags, for `git describe` snapshot versioning
+
+      - name: Install mise
+        uses: jdx/mise-action@v4
+        with:
+          install: true
+          cache: true
+
+      - name: Install patchelf (linux rpath rewrite)
+        if: matrix.goos == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y patchelf
+
+      - name: Provision deps + engine library
+        run: mise run setup # go mod download + setup-graph-lib.sh (native lib) + hooks
+
+      - name: Resolve build metadata
+        id: meta
+        env:
+          # Bind to env (never interpolate ${{ }} into run: — script injection).
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            version="$INPUT_TAG"
+          else
+            version="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+          fi
+          {
+            echo "version=$version"
+            echo "commit=$(git rev-parse --short HEAD)"
+            echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build maz (native, CGO + sqlite_fts5)
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          # meta.outputs.* derive from inputs.tag — bind to env, don't interpolate.
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          DATE: ${{ steps.meta.outputs.date }}
+        run: |
+          pkg=github.com/mo-cmyk/mazarbul/internal/version
+          go build -tags=sqlite_fts5 \
+            -ldflags "-s -w \
+              -X ${pkg}.Version=${VERSION} \
+              -X ${pkg}.Commit=${COMMIT} \
+              -X ${pkg}.Date=${DATE}" \
+            -o build/maz ./cmd/maz
+
+      - name: Stage archive (man, completions, bundled lib, rpath rewrite)
+        env:
+          TARGET_OS: ${{ matrix.goos }}
+        run: |
+          set -euo pipefail
+          mkdir -p stage/man/man1 stage/completions stage/lib
+          # The freshly built binary still has the dev (module-cache) rpath, and
+          # the lib lives in the cache, so it runs here — generate docs first.
+          ./build/maz man --output-dir stage/man/man1
+          ./build/maz completion bash > stage/completions/maz.bash
+          ./build/maz completion zsh  > stage/completions/maz.zsh
+          ./build/maz completion fish > stage/completions/maz.fish
+          # Bundle the engine lib. Resolve the EXACT go-ladybug version this
+          # build links (via `go list -m`) instead of scanning the whole module
+          # cache — otherwise a second cached version would make `find` pick a
+          # lib nondeterministically. setup-graph-lib populates one platform dir.
+          moddir="$(go list -m -f '{{.Dir}}' github.com/LadybugDB/go-ladybug)"
+          test -n "$moddir" || { echo "go-ladybug module dir not found" >&2; exit 1; }
+          libdir="$(find "$moddir/lib/dynamic" -mindepth 1 -maxdepth 1 -type d | head -1)"
+          test -n "$libdir" || { echo "engine lib dir not found" >&2; exit 1; }
+          cp -P "$libdir"/liblbug.* stage/lib/
+          # Rewrite rpath so the binary finds the bundled lib (../lib or ./lib).
+          cp build/maz stage/maz
+          ./scripts/release-rpath.sh stage/maz "$TARGET_OS"
+          cp LICENSE NOTICE README.md stage/
+
+      - name: Relocate-and-run smoke test (portability proof)
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/relocate
+          mkdir -p /tmp/relocate/bin /tmp/relocate/lib
+          cp stage/maz /tmp/relocate/bin/maz
+          cp -P stage/lib/* /tmp/relocate/lib/
+          # No module-cache rpath remains; this resolves liblbug from ../lib only.
+          out="$(/tmp/relocate/bin/maz --version)"
+          echo "relocated maz --version: $out"
+          printf '%s\n' "$out" | grep -Fq -- "$VERSION" || {
+            echo "version mismatch in relocated binary" >&2; exit 1; }
+
+      - name: Pack archive
+        id: pack
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          TARGET_OS: ${{ matrix.goos }}
+          TARGET_ARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          name="mazarbul_${VERSION}_${TARGET_OS}_${TARGET_ARCH}"
+          # Give the archive a single top-level dir (${name}/) so a manual
+          # `tar xf` lands files under ${name}/ instead of polluting the cwd.
+          # Done via the directory layout rather than a transform flag: BSD
+          # tar on the macOS runners has no GNU --transform. `mv` preserves
+          # the liblbug symlinks. install.sh strips this dir (--strip-components=1).
+          mkdir -p pack
+          mv stage "pack/${name}"
+          tar -C pack -czf "${name}.tar.gz" "${name}"
+          echo "archive=${name}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Upload archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ steps.pack.outputs.archive }}
+          if-no-files-found: error
+          retention-days: 7
+
+  assemble:
+    name: assemble release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # gh release upload (only exercised when publish=true)
+    steps:
+      - name: Download archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: dist
+
+      - name: Unified checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum mazarbul_*.tar.gz > checksums.txt
+          echo "== checksums.txt ==" && cat checksums.txt
+
+      - name: Upload combined dist (snapshot inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dist
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish archives to release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Bind untrusted/derived values to env — never interpolate into run:.
+          INPUT_TAG: ${{ inputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test -n "$INPUT_TAG" || { echo "publish requires a tag" >&2; exit 1; }
+          gh release upload "$INPUT_TAG" \
+            dist/mazarbul_*.tar.gz dist/checksums.txt \
+            --repo "$REPO" --clobber

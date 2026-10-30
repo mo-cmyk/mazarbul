@@ -1,0 +1,114 @@
+---
+title: "Set up a sync remote"
+description: "Create or connect the git repository Mazarbul syncs your memory to — a private GitHub repo, any git host, or a local mirror."
+---
+
+Mazarbul syncs your memory by sealing it into chunks and pushing them to a **git
+remote** — a normal git repository. Another device pulls those chunks back. A
+remote can be a private GitHub repo, a repo on any git host, or a bare mirror on
+disk.
+
+`maz init` configures a remote once (offering a GitHub repo if the `gh` CLI is
+signed in, otherwise a local mirror). This guide covers changing or adding a
+remote **afterwards**, from the CLI.
+
+## See your current remotes
+
+```bash
+maz sync remote show
+```
+
+Each scope (`personal`, `project`, `team`) has its own remote. A scope with no
+remote is local-only.
+
+## Option A — create a fresh private GitHub repo
+
+Requires the [GitHub CLI](https://cli.github.com/) signed in:
+
+```bash
+gh auth login                 # one-time
+maz sync remote create --name my-memory
+```
+
+This creates a **private** repo under your account (memory is private) and wires
+the `personal` scope to it over SSH. Use `--scope project` (or `team`) for a
+different scope, and `--encrypted` to seal the chunks (see
+[Encryption](#encryption)).
+
+<Note>
+`create` always makes a **private** repo. To use a **public** or **existing**
+repo, create it yourself and use Option B.
+</Note>
+
+## Option B — connect an existing repo
+
+Already have a repo (GitHub, GitLab, a self-hosted host, or a local path)? Point
+a scope at it:
+
+```bash
+# GitHub over SSH (recommended)
+maz sync remote set git@github.com:me/my-memory.git
+
+# GitHub over HTTPS (needs a token — see Authentication below)
+maz sync remote set https://github.com/me/my-memory.git --auth https_pat
+
+# A bare mirror on this machine (no auth)
+maz sync remote set ~/Backups/maz-mirror.git
+```
+
+`set` checks the URL is reachable with a quick, non-interactive `git ls-remote`
+and warns (but still saves) if it is not — so you can wire a repo before its
+credentials are in place. Pass `--no-verify` to skip the check, and `--scope`
+to target a non-personal scope.
+
+The repo must already exist; `set` does not create it.
+
+## Push and pull
+
+```bash
+maz push          # seal pending memory into chunks and upload (alias for `maz sync push`)
+maz pull          # download chunks from the remote (alias for `maz sync pull`)
+maz sync status   # per-scope: chunks local/remote, ahead/behind
+```
+
+To push automatically on a cadence instead of by hand:
+
+```bash
+maz config set sync.auto_push true
+```
+
+<Note>
+**Why a fresh `maz remember` doesn't show up in `maz sync diff` yet.** Sync ships
+*sealed chunks*, not raw events. A new memory lands in your event log instantly
+(and is recallable immediately), but it is only **sealed into a chunk** when you
+run `maz push` or when the daemon's sealer ticks (default: hourly,
+`sync.seal_interval_seconds`). `maz sync diff` compares already-sealed chunks
+against the remote, so it shows nothing until a seal happens. Run `maz push` and
+the new memory is sealed and uploaded in one step.
+</Note>
+
+## Authentication
+
+| URL form | `--auth` | What you need |
+| --- | --- | --- |
+| `git@host:me/repo.git`, `ssh://…` | `ssh` (inferred) | An SSH key your git host trusts (`~/.ssh/id_ed25519`) |
+| `https://host/me/repo.git` | `https_pat` | A personal access token in the keychain entry `mazarbul:sync:<scope>:pat` |
+| local path / `file://…` | `none` (inferred) | nothing |
+
+For HTTPS with a token, store it with your OS keychain under
+`mazarbul:sync:<scope>:pat` (e.g. `mazarbul:sync:personal:pat`). SSH is the
+simplest path for GitHub.
+
+## Encryption
+
+Sync is **plaintext by default** so your history renders on github.com (diffs,
+blame, browse). Opt a scope into XChaCha20-Poly1305-sealed chunks with:
+
+```bash
+maz config set sync.remotes.personal.encrypted true
+# or at wiring time:
+maz sync remote set git@github.com:me/private.git --encrypted
+```
+
+Encrypted scopes require a Watchword in the keychain; `maz doctor` warns if one
+is missing. See [Architecture](/explanation/architecture) for how sealing works.

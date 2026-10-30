@@ -1,0 +1,7 @@
+{
+  "vocabulary": "dublincore",
+  "snapshotVersion": "2012-06-14",
+  "snapshotDate": "2026-06-07",
+  "sourceURL": "https://www.dublincore.org/specifications/dublin-core/dcmi-terms/",
+  "notes": "Curated offline snapshot of DCMI (Dublin Core Metadata Initiative) type classes. Agent is in http://purl.org/dc/terms/; all other types are in the DCMI Type Vocabulary http://purl.org/dc/dcmitype/. Full specification at https://www.dublincore.org/specifications/dublin-core/dcmi-terms/."
+}

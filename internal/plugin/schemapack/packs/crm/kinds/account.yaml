@@ -1,0 +1,22 @@
+name: crm:Account
+displayName: Account
+description: A company or organization tracked as a sales relationship — the unit a deal is closed with.
+extends: organization
+sameAs:
+  - https://schema.org/Organization
+propertySchema:
+  type: object
+  properties:
+    tier:
+      type: string
+      description: Account importance or segment, e.g. strategic, mid-market, smb.
+    industry:
+      type: string
+      description: Primary industry or vertical of the account.
+    website:
+      type: string
+      format: uri
+      description: Primary web presence of the account.
+    annualRevenue:
+      type: number
+      description: Estimated annual revenue in the reporting currency, if known.

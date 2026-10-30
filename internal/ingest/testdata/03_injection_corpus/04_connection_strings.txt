@@ -1,0 +1,6 @@
+Update deployment config
+
+Set the production database and cache endpoints:
+DATABASE_URL=postgres://app_admin:SuperSecretPassword123@prod-db.internal:5432/payments
+REDIS_URL=redis://:cacheP4ssw0rdValue@redis.internal:6379/0
+MONGO_URI=mongodb+srv://svc_user:M0ngoSecretValue@cluster0.mongodb.example.com/app

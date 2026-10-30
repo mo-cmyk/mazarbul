@@ -1,0 +1,17 @@
+name: brain:Topic
+displayName: Topic
+description: A subject area that organizes notes and projects — a node in a personal knowledge taxonomy.
+propertySchema:
+  type: object
+  properties:
+    summary:
+      type: string
+      description: One- or two-sentence description of what this topic covers.
+    aliases:
+      type: array
+      items:
+        type: string
+      description: Alternative names this topic is referred to by.
+    area:
+      type: string
+      description: Top-level life area, e.g. career, health, learning, finances, creativity.

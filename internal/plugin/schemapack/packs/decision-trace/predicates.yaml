@@ -1,0 +1,28 @@
+predicates:
+  - predicate: derived_from
+    kind: non-functional
+    description: Subject insight or decision was derived from the object entity (evidence, observation, or prior decision). A single output may have multiple sources.
+    subjectKinds:
+      - dt:insight
+      - dt:decision
+    objectKinds:
+      - dt:insight
+      - dt:decision
+      - document
+
+  - predicate: supersedes_because
+    kind: functional
+    description: Subject decision supersedes the object decision for the stated reason. Functional — a decision has at most one direct predecessor it explicitly replaces.
+    subjectKinds:
+      - dt:decision
+    objectKinds:
+      - dt:decision
+
+  - predicate: rationale_for
+    kind: non-functional
+    description: Subject insight or principle supplies the rationale for the object decision. A decision may draw on several insights or principles.
+    subjectKinds:
+      - dt:insight
+      - dt:principle
+    objectKinds:
+      - dt:decision

@@ -1,0 +1,133 @@
+[
+  {
+    "id": "http://www.wikidata.org/entity/Q5",
+    "label": "human",
+    "comment": "Any member of Homo sapiens, a unique species of hominid primates."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q43229",
+    "label": "organization",
+    "comment": "Social entity with a collective goal, such as institutions, companies, agencies."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q4830453",
+    "label": "business",
+    "comment": "Organization that provides goods or services for economic activity.",
+    "subClassOf": "http://www.wikidata.org/entity/Q43229"
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q515",
+    "label": "city",
+    "comment": "Large and permanent human settlement."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q6256",
+    "label": "country",
+    "comment": "Distinct territorial body or political entity."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q1656682",
+    "label": "event",
+    "comment": "Occurrence at a particular time and place."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q49848",
+    "label": "document",
+    "comment": "Bounded physical representation of body of information designed for communication."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q7397",
+    "label": "software",
+    "comment": "Set of instructions that directs a computer to perform specific tasks."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q2424752",
+    "label": "product",
+    "comment": "Object or system made available for consumer use."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q42889",
+    "label": "vehicle",
+    "comment": "Mobile machine used for transporting people or cargo."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q41176",
+    "label": "building",
+    "comment": "Structure with walls and a roof."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q4022",
+    "label": "river",
+    "comment": "Natural watercourse flowing towards an ocean, lake, or another river."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q8502",
+    "label": "mountain",
+    "comment": "Large landform that rises above surrounding terrain."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q571",
+    "label": "book",
+    "comment": "Medium for recording information in the form of writing or images."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q11424",
+    "label": "film",
+    "comment": "Sequence of visual images shown on a screen, creating an illusion of motion."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q2188189",
+    "label": "musical work",
+    "comment": "Distinct intellectual or artistic musical creation."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q618779",
+    "label": "award",
+    "comment": "Honor bestowed as a mark of recognition."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q12737077",
+    "label": "occupation",
+    "comment": "Label applied to a person based on their vocation or role."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q4671277",
+    "label": "academic institution",
+    "comment": "Educational institution dedicated to higher education and research.",
+    "subClassOf": "http://www.wikidata.org/entity/Q43229"
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q327333",
+    "label": "government agency",
+    "comment": "Permanent or semi-permanent organization in the machinery of government.",
+    "subClassOf": "http://www.wikidata.org/entity/Q43229"
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q163740",
+    "label": "nonprofit organization",
+    "comment": "Organization that uses surplus revenues to achieve its goals rather than distributing them.",
+    "subClassOf": "http://www.wikidata.org/entity/Q43229"
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q12973014",
+    "label": "sports team",
+    "comment": "Group of individuals who compete together in a sport.",
+    "subClassOf": "http://www.wikidata.org/entity/Q43229"
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q7278",
+    "label": "political party",
+    "comment": "Political organization that runs election campaigns and seeks political power.",
+    "subClassOf": "http://www.wikidata.org/entity/Q43229"
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q8054",
+    "label": "protein",
+    "comment": "Biological molecule consisting of chains of amino acid residues."
+  },
+  {
+    "id": "http://www.wikidata.org/entity/Q11173",
+    "label": "chemical compound",
+    "comment": "Pure chemical substance consisting of two or more different elements."
+  }
+]

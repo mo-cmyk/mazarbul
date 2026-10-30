@@ -1,0 +1,12 @@
+{
+  "mentions": [
+    {
+      "kind": "person",
+      "displayName": "Ana",
+      "extractionText": "Ana",
+      "sourceSpan": {"startChar": 10, "endChar": 13},
+      "groundingScore": 1.0
+    }
+  ],
+  "relations": []
+}

@@ -1,0 +1,12 @@
+{
+  "mentions": [
+    {
+      "kind": "person",
+      "displayName": "Frodo",
+      "extractionText": "Frodo",
+      "sourceSpan": {"startChar": 9, "endChar": 14},
+      "groundingScore": 1.0
+    }
+  ],
+  "relations": []
+}

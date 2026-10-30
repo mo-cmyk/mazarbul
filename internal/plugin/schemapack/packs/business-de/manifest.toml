@@ -1,0 +1,5 @@
+name        = "business-de"
+version     = "0.1.0"
+description = "German business and legal entity types for Handelsregister / Bundesanzeiger data."
+category    = "extension"
+kind        = "schema-pack"

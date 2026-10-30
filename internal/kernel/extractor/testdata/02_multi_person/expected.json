@@ -1,0 +1,19 @@
+{
+  "mentions": [
+    {
+      "kind": "person",
+      "displayName": "Sophie",
+      "extractionText": "Sophie",
+      "sourceSpan": {"startChar": 22, "endChar": 28},
+      "groundingScore": 1.0
+    },
+    {
+      "kind": "person",
+      "displayName": "Marcus",
+      "extractionText": "Marcus",
+      "sourceSpan": {"startChar": 33, "endChar": 39},
+      "groundingScore": 1.0
+    }
+  ],
+  "relations": []
+}

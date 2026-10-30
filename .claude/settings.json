@@ -1,0 +1,187 @@
+{
+  "enableAllProjectMcpServers": true,
+  "includeCoAuthoredBy": false,
+  "teammateMode": "tmux",
+  "env": {
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(mise *)",
+      "Bash(go test *)",
+      "Bash(go vet *)",
+      "Bash(go fmt *)",
+      "Bash(go build *)",
+      "Bash(go run *)",
+      "Bash(go mod *)",
+      "Bash(gofumpt *)",
+      "Bash(goimports *)",
+      "Bash(golangci-lint *)",
+      "Bash(lefthook *)",
+      "Bash(./scripts/check-test-names.sh)",
+      "Bash(./scripts/check-test-names.sh *)",
+      "Bash(./scripts/devstack)",
+      "Bash(./scripts/devstack *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch *)",
+      "Bash(git stash *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git rebase *)",
+      "Bash(git tag *)",
+      "Bash(git ls-files *)",
+      "Bash(git check-ignore *)",
+      "Bash(gh pr *)",
+      "Bash(gh issue *)",
+      "Bash(gh run *)",
+      "Bash(gh api *)",
+      "Bash(gh repo *)",
+      "Bash(gh label *)",
+      "Bash(rg *)",
+      "Bash(find . *)",
+      "Bash(ls *)",
+      "Bash(wc *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(awk *)",
+      "Bash(jq *)",
+      "Bash(.claude/scripts/babysit-state.sh *)",
+      "Bash(.claude/scripts/babysit-greptile-fetch.sh *)",
+      "Bash(.claude/scripts/babysit-notify.sh *)",
+      "Bash(.claude/scripts/greptile-resolve-threads.sh *)",
+      "Bash(.claude/scripts/guard-destructive.sh *)",
+      "Bash(./.claude/scripts/babysit-state.sh *)",
+      "Bash(./.claude/scripts/babysit-greptile-fetch.sh *)",
+      "Bash(./.claude/scripts/babysit-notify.sh *)",
+      "Bash(./.claude/scripts/greptile-resolve-threads.sh *)",
+      "Bash(./.claude/scripts/guard-destructive.sh *)"
+    ],
+    "ask": [],
+    "deny": [
+      "Bash(claude --teammate*)",
+      "Bash(claude teammate*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/track-subagent-progress.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/route-prompt.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/session-namer.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-tool-validation.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-tool-validation.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/post-tool-format.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/task-completed-verify.sh"
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/teammate-idle-cleanup.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-verify.sh"
+          },
+          {
+            "type": "prompt",
+            "model": "claude-haiku-4-5",
+            "prompt": "Evaluate whether the agent should stop now or be directed to do more work. Default to ok:true (let the agent stop). Inputs: (1) git diff stats vs HEAD, (2) contents of .claude/last-check.md, (3) the agent's last user-visible message. Return JSON {ok: bool, reason: string}.\n\nReturn ok=false ONLY when ALL of these are true:\n  (a) The diff touches PRODUCTION CODE (Go in internal/ or cmd/), NOT just .claude/, agent-docs/, docs/, or markdown\n  (b) The agent's last message claims completion ('done', 'shipped', 'complete', 'finished', 'ready')\n  (c) At least one of these is true:\n      - .claude/last-check.md has non-empty Failures section\n      - Tests were touched but no go test invocation appears in last-check.md\n      - Production diff is >100 LoC with no test files touched at all\n\nWhen ok=false, the reason MUST be a SPECIFIC directive, name the file/skill/command. Example:\n  'last-check.md shows 3 test failures. Read the file and fix them before claiming done.'\n\nReturn ok=true when:\n- Diff is meta-only (.claude/, agent-docs/, docs/, *.md)\n- last-check.md Failures section is empty (Warnings/Cleanup-opportunities are informational, don't block)\n- Production diff <100 LoC OR tests were touched\n- Agent is not claiming completion\n- ANY ambiguity exists\n\nThis hook is a safety net for forgotten compliance steps, NOT a quality enforcer. Quality belongs in /go-strict, which the agent invokes deliberately.\n\nInput JSON: $ARGUMENTS"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/post-compact-reinject.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

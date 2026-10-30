@@ -1,0 +1,33 @@
+-- Migration 0046: agent-captured external-source freshness token (captureExternal).
+--
+-- captureExternal (the agent-mediated external-data capture verb) stores a
+-- lightweight snapshot of an external item (Notion page, Linear issue, Gmail
+-- thread): a pointer + an agent-written summary + this provenance row. The
+-- content body is NEVER stored; content_hash (already on source_refs) is the
+-- ETag and fetch_time is the cache age.
+--
+-- freshness_token binds the agent-supplied content_hash to the captured summary
+-- so a replayed or forged hash cannot silently suppress a content refresh. It is
+-- HMAC(install_secret, dedup_key + content_hash + len(summary)), computed by the
+-- captureExternal tool; the kernel stores it verbatim and never recomputes it
+-- (it has no install secret and never fetches). On re-capture, a token mismatch
+-- forces a write rather than an idempotent skip. NULL for rows written by the
+-- pull connectors (local-git / claude-chats / granola), which compute the hash
+-- server-side from the body they fetched and need no caller-integrity binding.
+--
+-- tombstone records that the agent reported the external item gone or
+-- inaccessible (a 404/403 on re-fetch): 'deleted' or 'access-revoked'. The row
+-- is kept (the SourceRef still points at its summary episode) so recall keeps
+-- surfacing the item with a freshnessStatus of 'access-unverified' rather than
+-- silently dropping it or telling the agent to re-fetch content it can no longer
+-- reach. NULL for a live snapshot.
+--
+-- Additive and nullable, so `maz rebuild` replays the existing source_refs
+-- events unchanged (the columns default NULL) and the projection reconstructs
+-- deterministically.
+--
+--   freshness_token  HMAC binding (dedup_key, content_hash, summary) for #G integrity; NULL on pull connectors
+--   tombstone        '' | 'deleted' | 'access-revoked'; NULL/empty for a live snapshot
+
+ALTER TABLE source_refs ADD COLUMN freshness_token TEXT;
+ALTER TABLE source_refs ADD COLUMN tombstone TEXT;

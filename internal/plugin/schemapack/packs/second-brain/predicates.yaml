@@ -1,0 +1,52 @@
+predicates:
+  - predicate: collaborates_on
+    kind: non-functional
+    description: Subject person collaborates on the object project. Non-functional — a project can have multiple collaborators.
+    subjectKinds:
+      - brain:Person
+    objectKinds:
+      - brain:Project
+
+  - predicate: tagged_with
+    kind: non-functional
+    description: Subject note or project is tagged with the object topic. Non-functional — a note can belong to many topics.
+    subjectKinds:
+      - brain:Note
+      - brain:Project
+    objectKinds:
+      - brain:Topic
+
+  - predicate: inspired_by
+    kind: non-functional
+    description: Subject note was inspired by or is a response to the object note or entity.
+    subjectKinds:
+      - brain:Note
+    objectKinds:
+      - brain:Note
+      - brain:Topic
+
+  - predicate: mentors
+    kind: non-functional
+    description: Subject person mentors the object person.
+    subjectKinds:
+      - brain:Person
+    objectKinds:
+      - brain:Person
+    sameAs:
+      - https://schema.org/knows
+
+  - predicate: owns_project
+    kind: non-functional
+    description: Subject person owns or leads the object project.
+    subjectKinds:
+      - brain:Person
+    objectKinds:
+      - brain:Project
+
+  - predicate: subtopic_of
+    kind: functional
+    description: Subject topic is a subtopic of the object topic. Functional — a topic has at most one parent in the hierarchy.
+    subjectKinds:
+      - brain:Topic
+    objectKinds:
+      - brain:Topic

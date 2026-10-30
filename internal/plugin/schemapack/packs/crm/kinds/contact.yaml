@@ -1,0 +1,19 @@
+name: crm:Contact
+displayName: Contact
+description: A person at an account — a stakeholder, champion, or decision maker in a deal.
+extends: person
+sameAs:
+  - https://schema.org/Person
+propertySchema:
+  type: object
+  properties:
+    title:
+      type: string
+      description: Job title or role, e.g. VP Engineering, Head of Procurement.
+    email:
+      type: string
+      format: email
+      description: Primary work email address.
+    role:
+      type: string
+      description: Role in the deal, e.g. champion, economic-buyer, blocker, end-user.

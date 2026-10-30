@@ -1,0 +1,182 @@
+[
+  {
+    "id": "https://schema.org/Person",
+    "label": "Person",
+    "comment": "A person (alive, dead, undead, or fictional).",
+    "subClassOf": "https://schema.org/Thing"
+  },
+  {
+    "id": "https://schema.org/Organization",
+    "label": "Organization",
+    "comment": "An organization such as a school, NGO, corporation, club, etc.",
+    "subClassOf": "https://schema.org/Thing"
+  },
+  {
+    "id": "https://schema.org/Place",
+    "label": "Place",
+    "comment": "Entities that have a somewhat fixed, physical extension.",
+    "subClassOf": "https://schema.org/Thing"
+  },
+  {
+    "id": "https://schema.org/Event",
+    "label": "Event",
+    "comment": "An event happening at a certain time and location.",
+    "subClassOf": "https://schema.org/Thing"
+  },
+  {
+    "id": "https://schema.org/CreativeWork",
+    "label": "CreativeWork",
+    "comment": "The most generic kind of creative work, including books, movies, photographs, software programs, etc.",
+    "subClassOf": "https://schema.org/Thing"
+  },
+  {
+    "id": "https://schema.org/Product",
+    "label": "Product",
+    "comment": "Any offered product or service.",
+    "subClassOf": "https://schema.org/Thing"
+  },
+  {
+    "id": "https://schema.org/Corporation",
+    "label": "Corporation",
+    "comment": "Organization: A business corporation.",
+    "subClassOf": "https://schema.org/Organization"
+  },
+  {
+    "id": "https://schema.org/EducationalOrganization",
+    "label": "EducationalOrganization",
+    "comment": "An educational organization.",
+    "subClassOf": "https://schema.org/Organization"
+  },
+  {
+    "id": "https://schema.org/GovernmentOrganization",
+    "label": "GovernmentOrganization",
+    "comment": "A governmental organization or agency.",
+    "subClassOf": "https://schema.org/Organization"
+  },
+  {
+    "id": "https://schema.org/LocalBusiness",
+    "label": "LocalBusiness",
+    "comment": "A particular physical business or branch of an organization.",
+    "subClassOf": "https://schema.org/Organization"
+  },
+  {
+    "id": "https://schema.org/NGO",
+    "label": "NGO",
+    "comment": "Non-governmental Organization: an organization that has goals related to political activities or causes.",
+    "subClassOf": "https://schema.org/Organization"
+  },
+  {
+    "id": "https://schema.org/SportsOrganization",
+    "label": "SportsOrganization",
+    "comment": "Represents the collection of all sports organizations, including sports teams, governing bodies, and sports associations.",
+    "subClassOf": "https://schema.org/Organization"
+  },
+  {
+    "id": "https://schema.org/City",
+    "label": "City",
+    "comment": "A city or town.",
+    "subClassOf": "https://schema.org/Place"
+  },
+  {
+    "id": "https://schema.org/Country",
+    "label": "Country",
+    "comment": "A country.",
+    "subClassOf": "https://schema.org/Place"
+  },
+  {
+    "id": "https://schema.org/LandmarksOrHistoricalBuildings",
+    "label": "LandmarksOrHistoricalBuildings",
+    "comment": "An historical landmark or building.",
+    "subClassOf": "https://schema.org/Place"
+  },
+  {
+    "id": "https://schema.org/Article",
+    "label": "Article",
+    "comment": "An article, such as a news article or piece of investigative report.",
+    "subClassOf": "https://schema.org/CreativeWork"
+  },
+  {
+    "id": "https://schema.org/Book",
+    "label": "Book",
+    "comment": "A book.",
+    "subClassOf": "https://schema.org/CreativeWork"
+  },
+  {
+    "id": "https://schema.org/Movie",
+    "label": "Movie",
+    "comment": "A movie.",
+    "subClassOf": "https://schema.org/CreativeWork"
+  },
+  {
+    "id": "https://schema.org/ScholarlyArticle",
+    "label": "ScholarlyArticle",
+    "comment": "A scholarly academic article.",
+    "subClassOf": "https://schema.org/Article"
+  },
+  {
+    "id": "https://schema.org/SoftwareApplication",
+    "label": "SoftwareApplication",
+    "comment": "A software application.",
+    "subClassOf": "https://schema.org/CreativeWork"
+  },
+  {
+    "id": "https://schema.org/Dataset",
+    "label": "Dataset",
+    "comment": "A body of structured information describing some topic(s) of interest.",
+    "subClassOf": "https://schema.org/CreativeWork"
+  },
+  {
+    "id": "https://schema.org/BusinessEvent",
+    "label": "BusinessEvent",
+    "comment": "Event type: Business event.",
+    "subClassOf": "https://schema.org/Event"
+  },
+  {
+    "id": "https://schema.org/SportsEvent",
+    "label": "SportsEvent",
+    "comment": "Event type: Sports event.",
+    "subClassOf": "https://schema.org/Event"
+  },
+  {
+    "id": "https://schema.org/SocialEvent",
+    "label": "SocialEvent",
+    "comment": "Event type: Social event.",
+    "subClassOf": "https://schema.org/Event"
+  },
+  {
+    "id": "https://schema.org/Project",
+    "label": "Project",
+    "comment": "An enterprise (potentially individual but typically representing a group) with a specific goal or purposes.",
+    "subClassOf": "https://schema.org/Organization"
+  },
+  {
+    "id": "https://schema.org/ResearchProject",
+    "label": "ResearchProject",
+    "comment": "A Research project.",
+    "subClassOf": "https://schema.org/Project"
+  },
+  {
+    "id": "https://schema.org/MedicalOrganization",
+    "label": "MedicalOrganization",
+    "comment": "A medical organization (hospital, clinic, laboratory, etc.).",
+    "subClassOf": "https://schema.org/Organization"
+  },
+  {
+    "id": "https://schema.org/FinancialService",
+    "label": "FinancialService",
+    "comment": "Financial services business.",
+    "subClassOf": "https://schema.org/LocalBusiness"
+  },
+  {
+    "id": "https://schema.org/LegalService",
+    "label": "LegalService",
+    "comment": "A LegalService is a business that provides legally-oriented services.",
+    "subClassOf": "https://schema.org/LocalBusiness"
+  },
+  {
+    "id": "https://schema.org/ItemList",
+    "label": "ItemList",
+    "comment": "A list of items of any sort.",
+    "subClassOf": "https://schema.org/CreativeWork"
+  }
+]

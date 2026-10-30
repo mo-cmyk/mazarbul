@@ -1,0 +1,20 @@
+name: extension:schema_org:event
+displayName: Event (schema.org)
+description: A happening at a specific time and place as defined by schema.org.
+extends: event
+sameAs:
+  - https://schema.org/Event
+propertySchema:
+  type: object
+  properties:
+    startDate:
+      type: string
+      format: date-time
+      description: Start date and time of the event (ISO 8601).
+    endDate:
+      type: string
+      format: date-time
+      description: End date and time of the event (ISO 8601).
+    location:
+      type: string
+      description: Name or description of the event location.

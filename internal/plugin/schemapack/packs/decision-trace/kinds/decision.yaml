@@ -1,0 +1,21 @@
+name: dt:decision
+displayName: Decision
+description: A discrete choice made at a point in time, together with the context and constraints that shaped it.
+sameAs:
+  - https://schema.org/Action
+propertySchema:
+  type: object
+  properties:
+    status:
+      type: string
+      description: Current standing of the decision, e.g. active, superseded, reversed.
+    decisionDate:
+      type: string
+      format: date
+      description: Calendar date the decision was made (ISO 8601).
+    drivers:
+      type: string
+      description: Short summary of the key constraints or forces that made this option preferable.
+    alternatives:
+      type: string
+      description: Other options that were considered and why they were not chosen.

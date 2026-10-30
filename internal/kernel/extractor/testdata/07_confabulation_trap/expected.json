@@ -1,0 +1,5 @@
+{
+  "mentions": [],
+  "relations": [],
+  "note": "No named entities present. A naive model might invent a company or person; the grounding pass should reject any such confabulation with groundingScore=0."
+}

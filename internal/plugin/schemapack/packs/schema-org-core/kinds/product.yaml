@@ -1,0 +1,17 @@
+name: extension:schema_org:product
+displayName: Product (schema.org)
+description: Any offered product or service as defined by schema.org.
+sameAs:
+  - https://schema.org/Product
+propertySchema:
+  type: object
+  properties:
+    sku:
+      type: string
+      description: Stock-keeping unit identifier.
+    brand:
+      type: string
+      description: Brand name of the product.
+    price:
+      type: number
+      description: Current price in the default currency.

@@ -1,0 +1,19 @@
+{
+  "note": "This episode exceeds the 6000-byte chunk threshold and will be split into two overlapping chunks before extraction. After merging and deduplication the following named entities are expected. Span offsets are approximate; tests assert presence of displayName+kind only for chunked episodes.",
+  "expectedEntities": [
+    {"kind": "person", "displayName": "Gandalf"},
+    {"kind": "person", "displayName": "Daisy Gardner"},
+    {"kind": "person", "displayName": "Haldir"},
+    {"kind": "person", "displayName": "Eowyn"},
+    {"kind": "person", "displayName": "Sophie Braun"},
+    {"kind": "person", "displayName": "Theoden"},
+    {"kind": "person", "displayName": "Ana Ferreira"},
+    {"kind": "person", "displayName": "Dr. Yuki Tanaka"},
+    {"kind": "organization", "displayName": "Rivendell"},
+    {"kind": "organization", "displayName": "Mazarbul"},
+    {"kind": "place", "displayName": "Berlin"},
+    {"kind": "place", "displayName": "Zurich"},
+    {"kind": "project", "displayName": "Phoenix"},
+    {"kind": "event", "displayName": "LongMemEval"}
+  ]
+}

@@ -1,0 +1,21 @@
+name: brain:Person
+displayName: Person
+description: A person in the life-graph — friend, colleague, mentor, or family member.
+extends: person
+sameAs:
+  - https://schema.org/Person
+propertySchema:
+  type: object
+  properties:
+    role:
+      type: string
+      description: Relationship context, e.g. colleague, mentor, friend, partner.
+    email:
+      type: string
+      description: Primary email address.
+    location:
+      type: string
+      description: City or region the person is based in.
+    notes:
+      type: string
+      description: Free-text notes — how you met, shared interests, follow-ups.

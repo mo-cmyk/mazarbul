@@ -1,0 +1,7 @@
+{
+  "vocabulary": "schema.org",
+  "snapshotVersion": "26.0",
+  "snapshotDate": "2026-06-01",
+  "sourceURL": "https://schema.org/version/latest/schemaorg-current-https.jsonld",
+  "notes": "Curated offline snapshot. Contains the subset of schema.org types most useful for Mazarbul knowledge-graph construction. Full schema.org has 800+ types; this snapshot covers the 30 most common. Use --from-file with a full JSONLD dump for a complete import."
+}

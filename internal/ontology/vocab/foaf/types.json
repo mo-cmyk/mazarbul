@@ -1,0 +1,57 @@
+[
+  {
+    "id": "http://xmlns.com/foaf/0.1/Agent",
+    "label": "Agent",
+    "comment": "An agent (person, organization, group, software, etc.) that can act in the world."
+  },
+  {
+    "id": "http://xmlns.com/foaf/0.1/Person",
+    "label": "Person",
+    "comment": "A person known in the FOAF sense — a human being.",
+    "subClassOf": "http://xmlns.com/foaf/0.1/Agent"
+  },
+  {
+    "id": "http://xmlns.com/foaf/0.1/Organization",
+    "label": "Organization",
+    "comment": "An organization.",
+    "subClassOf": "http://xmlns.com/foaf/0.1/Agent"
+  },
+  {
+    "id": "http://xmlns.com/foaf/0.1/Group",
+    "label": "Group",
+    "comment": "A collection of individual agents, treated as a unit.",
+    "subClassOf": "http://xmlns.com/foaf/0.1/Agent"
+  },
+  {
+    "id": "http://xmlns.com/foaf/0.1/Project",
+    "label": "Project",
+    "comment": "A project, to which people or organizations can be related."
+  },
+  {
+    "id": "http://xmlns.com/foaf/0.1/Document",
+    "label": "Document",
+    "comment": "A document, including web pages, PDFs, reports, and any information artifact."
+  },
+  {
+    "id": "http://xmlns.com/foaf/0.1/Image",
+    "label": "Image",
+    "comment": "An image artifact.",
+    "subClassOf": "http://xmlns.com/foaf/0.1/Document"
+  },
+  {
+    "id": "http://xmlns.com/foaf/0.1/OnlineAccount",
+    "label": "OnlineAccount",
+    "comment": "An online account held by an agent."
+  },
+  {
+    "id": "http://xmlns.com/foaf/0.1/PersonalProfileDocument",
+    "label": "PersonalProfileDocument",
+    "comment": "A personal profile document, such as a FOAF file describing a person.",
+    "subClassOf": "http://xmlns.com/foaf/0.1/Document"
+  },
+  {
+    "id": "http://xmlns.com/foaf/0.1/LabelProperty",
+    "label": "LabelProperty",
+    "comment": "A kind of property used to label things in the FOAF vocabulary."
+  }
+]

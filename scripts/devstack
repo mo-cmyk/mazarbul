@@ -1,0 +1,307 @@
+#!/usr/bin/env bash
+# devstack - per-worktree dev environment manager for Mazarbul.
+#
+# Subcommands:
+#   up                 Create the data dir for this worktree (idempotent).
+#   down               No-op. Data persists between sessions.
+#   reset              Delete the data dir for this worktree.
+#   status             Show the resolved data dir, worktree path, and branch.
+#   worktree <name>    Spawn an isolated feature worktree:
+#                        - Creates ../mazarbul-<name> on branch feat/<name>
+#                        - Runs `mise install`, `mise run setup`, `mise run ci`
+#                        - Confirms per-worktree MAZ_DATA_DIR isolation
+#                      Prints next-steps (cd path + claude command) at the end.
+#   cw <name>          Alias for `worktree`.
+#   doctor             Run preflight checks: required tools, repo health,
+#                      mise trust, hook installation.
+#
+# The data dir resolves to ${MAZ_DATA_DIR:-./.mazarbul-data}. When invoked
+# from a mise-trusted worktree, ${MAZ_DATA_DIR} is set from `.mise.toml`'s
+# `{{ config_root }}/.mazarbul-data`, so each worktree owns its own data.
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+if [[ -t 2 ]]; then
+  C_RED=$'\033[31m'
+  C_GRN=$'\033[32m'
+  C_YEL=$'\033[33m'
+  C_DIM=$'\033[2m'
+  C_BLD=$'\033[1m'
+  C_RST=$'\033[0m'
+else
+  C_RED='' C_GRN='' C_YEL='' C_DIM='' C_BLD='' C_RST=''
+fi
+
+err()  { printf '%s%s%s %s\n' "${C_RED}" "✘" "${C_RST}" "$*" >&2; }
+ok()   { printf '%s%s%s %s\n' "${C_GRN}" "✓" "${C_RST}" "$*" >&2; }
+warn() { printf '%s%s%s %s\n' "${C_YEL}" "⚠" "${C_RST}" "$*" >&2; }
+step() { printf '%s%s%s %s\n' "${C_DIM}" "↳" "${C_RST}" "$*" >&2; }
+die()  { err "$*"; exit 1; }
+
+DATA_DIR="${MAZ_DATA_DIR:-./.mazarbul-data}"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+# ---------------------------------------------------------------------------
+# usage
+# ---------------------------------------------------------------------------
+
+usage() {
+  cat <<'EOF'
+Usage: devstack <subcommand> [args]
+
+Subcommands:
+  up                    Create the data dir at $MAZ_DATA_DIR (default ./.mazarbul-data).
+  down                  No-op. Data persists between sessions.
+  reset                 Delete the data dir at $MAZ_DATA_DIR.
+  status                Show the resolved data dir, worktree path, and branch.
+  worktree <name>       Spawn ../mazarbul-<name> on branch feat/<name>, run mise + ci.
+  cw <name>             Alias for worktree.
+  doctor                Preflight checks (tools, hooks, mise trust).
+  ready [milestone]     List open issues whose dependencies are all closed.
+                        Default milestone: "M1: Walking skeleton". Requires gh CLI.
+  help, -h, --help      Show this help.
+
+Environment:
+  MAZ_DATA_DIR          Override the data dir (default: ./.mazarbul-data).
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# subcommands
+# ---------------------------------------------------------------------------
+
+cmd_up() {
+  mkdir -p "$DATA_DIR"
+  ok "data dir ready: $DATA_DIR"
+}
+
+cmd_down() {
+  ok "down (no-op; data preserved at $DATA_DIR)"
+}
+
+cmd_reset() {
+  if [[ -d "$DATA_DIR" ]]; then
+    rm -rf "$DATA_DIR"
+    ok "reset (removed $DATA_DIR)"
+  else
+    warn "reset (nothing to remove at $DATA_DIR)"
+  fi
+}
+
+cmd_status() {
+  local branch
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "(not a git repo)")
+  printf '%sworktree%s    %s\n' "${C_BLD}" "${C_RST}" "$REPO_ROOT"
+  printf '%sbranch%s      %s\n' "${C_BLD}" "${C_RST}" "$branch"
+  printf '%sdata_dir%s    %s\n' "${C_BLD}" "${C_RST}" "$DATA_DIR"
+  if [[ -d "$DATA_DIR" ]]; then
+    printf '%sdata_size%s   %s\n' "${C_BLD}" "${C_RST}" "$(du -sh "$DATA_DIR" 2>/dev/null | awk '{print $1}')"
+  else
+    printf '%sdata_size%s   (does not exist; run `devstack up`)\n' "${C_BLD}" "${C_RST}"
+  fi
+}
+
+cmd_worktree() {
+  local name="${1:-}"
+  [[ -n "$name" ]] || die "worktree: name required (example: devstack worktree event-log)"
+
+  # Validate name: lowercase, alphanumerics + dashes only.
+  if ! [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+    die "worktree: name must be lowercase alphanumerics and dashes (got: $name)"
+  fi
+
+  local branch="feat/${name}"
+  local path
+  path="$(cd "${REPO_ROOT}/.." && pwd)/mazarbul-${name}"
+
+  if [[ -e "$path" ]]; then
+    die "worktree: $path already exists"
+  fi
+
+  step "creating worktree at $path on branch $branch"
+  git worktree add "$path" -b "$branch" >&2
+
+  step "trusting mise config in new worktree"
+  ( cd "$path" && mise trust >/dev/null )
+
+  step "running mise install in new worktree (downloads any missing tools)"
+  ( cd "$path" && mise install ) >&2
+
+  step "running mise run setup (go mod download + lefthook install)"
+  ( cd "$path" && mise run setup ) >&2
+
+  step "running mise run ci (full gate) to confirm a green starting point"
+  ( cd "$path" && mise run ci ) >&2
+
+  local data_dir
+  data_dir=$( cd "$path" && mise env --shell bash | awk -F= '/^export MAZ_DATA_DIR=/ {print $2}' )
+
+  echo
+  ok "worktree ready: $path"
+  ok "branch: $branch"
+  ok "isolated data dir: $data_dir"
+  echo
+  printf '%sNext:%s\n' "${C_BLD}" "${C_RST}"
+  printf '  cd %s\n' "$path"
+  printf '  claude   # then: "Read AGENTS.md and start work on <task>"\n'
+  printf '\n%sWhen the PR merges:%s\n' "${C_BLD}" "${C_RST}"
+  printf '  cd %s\n' "$REPO_ROOT"
+  printf '  git worktree remove %s\n' "$path"
+  printf '  git branch -D %s\n' "$branch"
+}
+
+cmd_doctor() {
+  local fail=0
+
+  # Required CLI tools.
+  for tool in mise git gh go; do
+    if command -v "$tool" >/dev/null 2>&1; then
+      ok "$tool: $(command -v "$tool")"
+    else
+      err "$tool: not found in PATH"
+      fail=1
+    fi
+  done
+
+  # mise trust state for this directory.
+  if mise env --shell bash >/dev/null 2>&1; then
+    ok "mise: trusted for this worktree"
+  else
+    warn "mise: not trusted (run \`mise trust\` from the repo root)"
+    fail=1
+  fi
+
+  # Git hooks installed via lefthook.
+  if [[ -f "${REPO_ROOT}/.git/hooks/pre-commit" ]] && grep -q lefthook "${REPO_ROOT}/.git/hooks/pre-commit" 2>/dev/null; then
+    ok "lefthook: pre-commit hook installed"
+  else
+    warn "lefthook: pre-commit hook missing (run \`mise run setup\`)"
+    fail=1
+  fi
+
+  # Data dir present (or expected absent).
+  if [[ -d "$DATA_DIR" ]]; then
+    ok "data dir present at $DATA_DIR"
+  else
+    warn "data dir not yet created (run \`devstack up\` if you need it)"
+  fi
+
+  if (( fail )); then
+    echo
+    err "doctor: $fail check(s) failed"
+    exit 1
+  fi
+  echo
+  ok "doctor: all checks passed"
+}
+
+cmd_ready() {
+  local milestone="${1:-M1: Walking skeleton}"
+  command -v gh >/dev/null 2>&1 || die "ready: gh CLI is required"
+  command -v jq >/dev/null 2>&1 || die "ready: jq is required"
+
+  step "computing ready set for milestone: $milestone"
+
+  # Fetch all open issues in the milestone (number, title, body, labels).
+  local issues_json
+  issues_json=$(gh issue list \
+    --state open \
+    --milestone "$milestone" \
+    --json number,title,body,labels \
+    --limit 200 2>/dev/null) || die "ready: gh issue list failed (is the repo cloned with gh auth?)"
+
+  local total
+  total=$(echo "$issues_json" | jq 'length')
+  if [[ "$total" -eq 0 ]]; then
+    warn "no open issues in milestone $milestone"
+    return 0
+  fi
+
+  # For each issue: extract deps from body, check each dep's state.
+  # An issue is ready if every "#N" in its "Depends on (blocked by):" line is
+  # a closed issue (or merged PR; gh treats them uniformly for state).
+  local ready_count=0
+  local total_count=0
+  local ready_lines=""
+
+  while IFS= read -r issue_json; do
+    total_count=$((total_count + 1))
+    local number title body
+    number=$(echo "$issue_json" | jq -r '.number')
+    title=$(echo "$issue_json" | jq -r '.title')
+    body=$(echo "$issue_json" | jq -r '.body // ""')
+
+    # Skip parent epics in the ready list (they close when children close).
+    if echo "$issue_json" | jq -e '.labels[] | select(.name == "epic")' >/dev/null; then
+      continue
+    fi
+
+    # Extract dep numbers only from the canonical deps line: a bullet that
+    # opens with "Depends on" (optionally followed by "(blocked by)") and a
+    # colon. Anchoring on the colon prevents narrative bullets like "Depends
+    # on this one staying separate from epic #12" from being mis-read as
+    # deps. `|| true` keeps `set -euo pipefail` from aborting on issues with
+    # no Depends-on line.
+    local deps_line
+    deps_line=$(echo "$body" | grep -iE '^[-* ]*depends on([[:space:]]*\(blocked by\))?[[:space:]]*:' | grep -oE '#[0-9]+' | tr -d '#' | sort -u || true)
+
+    local ready=true
+    if [[ -n "$deps_line" ]]; then
+      while IFS= read -r dep; do
+        [[ -z "$dep" ]] && continue
+        local dep_state
+        dep_state=$(gh issue view "$dep" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+        # PRs return state=MERGED, issues return state=CLOSED. Both mean "done"
+        # for ready-set purposes; UNKNOWN keeps the issue blocked so a typo in
+        # a deps line never produces a false-positive ready signal.
+        if [[ "$dep_state" != "CLOSED" && "$dep_state" != "MERGED" ]]; then
+          ready=false
+          break
+        fi
+      done <<< "$deps_line"
+    fi
+
+    if [[ "$ready" == "true" ]]; then
+      ready_count=$((ready_count + 1))
+      ready_lines+=$(printf '  #%-4s %s\n' "$number" "$title")
+      ready_lines+=$'\n'
+    fi
+  done < <(echo "$issues_json" | jq -c '.[]')
+
+  echo
+  if [[ "$ready_count" -eq 0 ]]; then
+    warn "no ready issues (every open issue has at least one open dependency)"
+  else
+    printf '%sReady%s issues in %s (%d of %d open):\n' "${C_GRN}" "${C_RST}" "$milestone" "$ready_count" "$total_count"
+    echo
+    printf '%s' "$ready_lines"
+    echo
+    printf '%sNext step:%s pick K and spawn worktrees:\n' "${C_BLD}" "${C_RST}"
+    printf '  ./scripts/devstack worktree <slug>   # one per chosen issue\n'
+    printf '  cd ../mazarbul-<slug> && claude       # then plan-mode + ship\n'
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# dispatch
+# ---------------------------------------------------------------------------
+
+case "${1:-}" in
+  up)                cmd_up ;;
+  down)              cmd_down ;;
+  reset)             cmd_reset ;;
+  status)            cmd_status ;;
+  worktree|cw)       shift; cmd_worktree "$@" ;;
+  doctor)            cmd_doctor ;;
+  ready)             shift; cmd_ready "$@" ;;
+  ""|help|-h|--help) usage; exit 0 ;;
+  *)
+    err "unknown subcommand: $1"
+    usage
+    exit 2
+    ;;
+esac

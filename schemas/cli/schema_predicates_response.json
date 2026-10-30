@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mazarbul.dev/schemas/cli/schema_predicates_response.json",
+  "title": "SchemaPredicatesResponse",
+  "description": "Response from maz schema predicates: an array of predicate vocabulary rows.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "description": "One predicate vocabulary entry.",
+    "properties": {
+      "predicate": {
+        "type": "string",
+        "description": "The relation name, e.g. works_at."
+      },
+      "kind": {
+        "type": "string",
+        "description": "functional or non-functional.",
+        "enum": ["functional", "non-functional"]
+      },
+      "description": {
+        "type": "string",
+        "description": "Human-readable explanation of the predicate."
+      },
+      "addedAt": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Time the predicate was registered. RFC 3339 UTC."
+      },
+      "addedBy": {
+        "type": "string",
+        "description": "Who added the predicate: seed, llm, or user."
+      }
+    },
+    "required": ["predicate", "kind", "description", "addedAt", "addedBy"]
+  }
+}

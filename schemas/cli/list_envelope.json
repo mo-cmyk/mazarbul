@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mazarbul.dev/schemas/cli/list_envelope.json",
+  "title": "ListEnvelope",
+  "description": "Generic pagination envelope returned by list commands.",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "description": "The page of items. Type depends on the resource.",
+      "items": {}
+    },
+    "nextPageToken": {
+      "type": "string",
+      "description": "Opaque cursor for the next page. Absent when no more pages exist."
+    },
+    "totalSize": {
+      "type": "integer",
+      "description": "Total number of matching items across all pages. Optional.",
+      "minimum": 0
+    }
+  },
+  "required": ["items"]
+}

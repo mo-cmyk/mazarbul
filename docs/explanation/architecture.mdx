@@ -1,0 +1,75 @@
+---
+title: "Architecture"
+description: "Kernel, four-layer storage, MCP, CLI, plugin loader, git CRDT sync."
+---
+
+One-page overview of Mazarbul's kernel and storage layout. Expanded sections land in M1.
+
+## Kernel
+
+`internal/kernel/` holds the event log, the query composer, and the index dispatcher. The kernel is the only package that writes to the event log; everything else reads through it.
+
+The kernel accepts append-only events shaped as JSON Schema records, content-addressed by SHA-256, and broadcasts them to the four index layers below for materialization. Reads compose queries across the indexes; the event log is the source of truth, never the indexes.
+
+{/* TODO(m1): expand: event types, supersede semantics, transaction model, batch ingest API. */}
+
+## Four-layer storage
+
+All four indexes are embedded in-process. SQLite/Kuzu/vector store are local-only derivatives, **gitignored**, rebuilt from the event log on `maz pull`.
+
+| Layer | Implementation | Role |
+|---|---|---|
+| Event log | JSONL files on disk, content-addressed | Immutable, append-only source of truth. Greppable. Git-diffable. |
+| Graph | Kuzu (embedded, Cypher) | Entities, relations, provenance edges. |
+| Vector index | sqlite-vec (extension on SQLite) | Embedding lookup; chunk dedup via content hash. |
+| Full-text search | SQLite FTS5 | Token-level search across documents and notes. |
+
+{/* TODO(m1): expand: schema migration policy, rebuild semantics, vector dimension choice, embedding provider abstraction. */}
+
+## MCP server surface
+
+`internal/mcp/` exposes the primary integration surface for agents. The MCP server speaks JSON-RPC 2.0 over stdio and HTTP. Stable tools land in M1:
+
+- `remember(fact, scope, source)`: append an event with provenance.
+- `recall(query, filters)`: full-text + vector + graph hybrid search.
+- `forget(id)`: append a tombstone event; never deletes log rows.
+- `relate(a, b, kind)`: propose a relation; queued for review.
+- `traverse(start, hops, predicates)`: graph walk with budget cap.
+- `review(scope)`: surface pending enrichment proposals.
+
+Tool definitions follow AIP naming for input and output JSON Schemas (`createTime`, plural collection paths, CRUD verbs).
+
+{/* TODO(m1): expand: tool schema versioning, capability negotiation, rate limits, request correlation. */}
+
+## CLI surface
+
+`internal/cli/` is a cobra command tree. Every command supports two modes:
+
+- **CLI mode** (default when stdout is not a TTY, or `--no-tui`, or `--json`): plain text or structured JSON, no escape sequences, no animations. Scripted and agent-callable.
+- **TUI mode** (default when stdout is a TTY): Bubble Tea program with `bubbles` components, `huh` forms, `glamour` markdown, `lipgloss` styling under the active theme.
+
+Mode detection lives in `internal/tui/mode.go` via `golang.org/x/term.IsTerminal`.
+
+{/* TODO(m1): expand: full command tree, JSON output schemas, exit code policy, completion scripts. */}
+
+## Plugin loader
+
+`internal/plugin/` parses TOML manifests and registers plugins into the slot registry. Three categories, kept distinct:
+
+- **Providers**: implementations of kernel-required capabilities. One active per slot. Chat / embed / storage / vector / graph / full-text / sync / auth / parser.
+- **Connectors**: bridges to external services. Many active simultaneously. Usually MCP servers.
+- **Extensions**: schema packs, enrichment sources, custom parsers, custom commands.
+
+{/* TODO(m1): expand: signing, dependency resolution, sandbox model, lifecycle hooks. */}
+
+## Sync (git CRDT)
+
+Sync is literal `git push/pull` on the append-only event log. CRDT semantics, no merge conflicts. Three scopes:
+
+- **Project** scope: in-repo, encrypted at rest with project key.
+- **Personal** scope: private GitHub repo, syncs your devices.
+- **Team** scope: org GitHub repo, ACL is the collaborator list.
+
+`maz mellon <device>` pairs a new device; `maz sync` runs git operations on the configured remotes.
+
+{/* TODO(m1): expand: encryption-at-rest design, key rotation, capability tokens, conflict-free merge proofs. */}

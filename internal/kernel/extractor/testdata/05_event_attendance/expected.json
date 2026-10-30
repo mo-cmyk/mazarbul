@@ -1,0 +1,37 @@
+{
+  "mentions": [
+    {
+      "kind": "person",
+      "displayName": "Sophie",
+      "extractionText": "Sophie",
+      "sourceSpan": {"startChar": 0, "endChar": 6},
+      "groundingScore": 1.0
+    },
+    {
+      "kind": "person",
+      "displayName": "Marcus",
+      "extractionText": "Marcus",
+      "sourceSpan": {"startChar": 11, "endChar": 17},
+      "groundingScore": 1.0
+    },
+    {
+      "kind": "event",
+      "displayName": "NeurIPS 2024",
+      "extractionText": "NeurIPS 2024",
+      "sourceSpan": {"startChar": 32, "endChar": 44},
+      "groundingScore": 1.0
+    },
+    {
+      "kind": "place",
+      "displayName": "Vancouver",
+      "extractionText": "Vancouver",
+      "sourceSpan": {"startChar": 48, "endChar": 57},
+      "groundingScore": 1.0
+    }
+  ],
+  "relations": [
+    {"subjectMentionIdx": 0, "predicate": "attended", "objectMentionIdx": 2},
+    {"subjectMentionIdx": 1, "predicate": "attended", "objectMentionIdx": 2},
+    {"subjectMentionIdx": 2, "predicate": "located_in", "objectMentionIdx": 3}
+  ]
+}

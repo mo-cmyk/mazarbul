@@ -1,0 +1,5 @@
+name        = "notes-organizer"
+version     = "0.1.0"
+description = "Organize freeform notes into topics and sources, with an operating playbook for building a navigable knowledge base."
+category    = "extension"
+kind        = "schema-pack"

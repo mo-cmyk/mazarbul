@@ -1,0 +1,51 @@
+predicates:
+  - predicate: founder_of
+    kind: non-functional
+    description: Subject person is a founder of the object organization.
+    subjectKinds:
+      - person
+    objectKinds:
+      - organization
+    sameAs:
+      - https://schema.org/founder
+
+  - predicate: employee_of
+    kind: functional
+    description: Subject person is currently employed by the object organization.
+    subjectKinds:
+      - person
+    objectKinds:
+      - organization
+    sameAs:
+      - https://schema.org/worksFor
+
+  - predicate: alumni_of
+    kind: non-functional
+    description: Subject person is an alumnus of the object organization or educational institution.
+    subjectKinds:
+      - person
+    objectKinds:
+      - organization
+    sameAs:
+      - https://schema.org/alumniOf
+
+  - predicate: attended
+    kind: non-functional
+    description: Subject person attended the object event.
+    subjectKinds:
+      - person
+    objectKinds:
+      - event
+    sameAs:
+      - https://schema.org/attendee
+
+  - predicate: author_of
+    kind: non-functional
+    description: Subject person or organization authored the object creative work.
+    subjectKinds:
+      - person
+      - organization
+    objectKinds:
+      - document
+    sameAs:
+      - https://schema.org/author

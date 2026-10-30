@@ -1,0 +1,5 @@
+name        = "schema-org-core"
+version     = "0.1.0"
+description = "Core schema.org types grafted onto the Mazarbul kind taxonomy."
+category    = "extension"
+kind        = "schema-pack"

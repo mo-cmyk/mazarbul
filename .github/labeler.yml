@@ -1,0 +1,40 @@
+# Label configuration for actions/labeler
+# https://github.com/actions/labeler
+#
+# Automatically adds labels to PRs based on changed files.
+
+"area:kernel":
+  - changed-files:
+      - any-glob-to-any-file: internal/kernel/**
+
+"area:cli":
+  - changed-files:
+      - any-glob-to-any-file: internal/cli/**
+
+"area:tui":
+  - changed-files:
+      - any-glob-to-any-file: internal/tui/**
+
+"area:mcp":
+  - changed-files:
+      - any-glob-to-any-file: internal/mcp/**
+
+"area:plugin":
+  - changed-files:
+      - any-glob-to-any-file: internal/plugin/**
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file: docs/**
+
+"area:agent-docs":
+  - changed-files:
+      - any-glob-to-any-file: agent-docs/**
+
+"area:agent-infra":
+  - changed-files:
+      - any-glob-to-any-file: .claude/**
+
+"area:ci":
+  - changed-files:
+      - any-glob-to-any-file: .github/**

@@ -1,0 +1,143 @@
+[tools]
+go = "1.25.11"
+golangci-lint = "2.6.0"
+lefthook = "1.7.18"
+gofumpt = "0.7.0"
+"go:golang.org/x/tools/cmd/goimports" = "latest"
+"go:github.com/air-verse/air" = "latest"
+"go:github.com/charmbracelet/vhs" = "latest"
+
+[env]
+MAZ_ENV = "dev"
+MAZ_DATA_DIR = "{{ config_root }}/.mazarbul-data"
+GOMEMLIMIT = "1GiB"
+# sqlite_fts5 enables FTS5 inside the mattn/go-sqlite3 CGO build.
+# Required by internal/kernel/storage/sqlite/0002_fts5_episodes.up.sql.
+GOFLAGS = "-tags=sqlite_fts5"
+
+[tasks.setup]
+description = "Install deps, graph lib, and git hooks"
+run = ["go mod download", "./scripts/setup-graph-lib.sh", "lefthook install"]
+
+[tasks."setup-graph"]
+description = "Install the LadybugDB dynamic library into the Go module cache"
+run = "./scripts/setup-graph-lib.sh"
+
+[tasks.fmt]
+description = "Format Go code (gofumpt + goimports)"
+run = ["gofumpt -w .", "goimports -w -local github.com/mo-cmyk/mazarbul ."]
+
+[tasks.lint]
+description = "Run golangci-lint (full)"
+depends = ["setup-graph"]
+# 20m timeout: golangci-lint scans the whole repo and the M1 closeout pushed
+# us past the 5m default on cold GitHub Actions runners (PR #133 timed out at
+# 5m06s → 10m). The `ci` task runs lint alongside `test` (611s) on one runner,
+# so the cgo-heavy tree's cold analysis compile contended past 10m on ubuntu
+# (PR #302). Keep the cap generous so the gate doesn't false-fail on a slow
+# runner; local mac runs still finish in well under a minute.
+run = "golangci-lint run --timeout 20m ./..."
+
+[tasks."lint-fast"]
+description = "Run fast linters only (golangci-lint v2 flag is --fast-only)"
+depends = ["setup-graph"]
+run = "golangci-lint run --fast-only ./..."
+
+[tasks.test]
+description = "Run all tests with race detector"
+depends = ["setup-graph"]
+# -p 4: limit to 4 packages in parallel. The default (-p=GOMAXPROCS on M1=10+)
+# causes address-space exhaustion: 50+ packages × GOMAXPROCS concurrent tests
+# each opening CGO SQLite/KuzuDB stores. Under high pressure the race detector
+# hits "too many address space collisions" and the CLI E2E suite queues 38+
+# live-backend tests beyond the package timeout. -p 4 caps peak pressure at
+# ~48 concurrent goroutines; each package still parallelises its own tests.
+# 10m per-package: in isolation the CLI suite finishes in <10m.
+run = ["./scripts/check-test-names.sh", "go test -race -p 4 -timeout 15m ./..."]
+
+[tasks."test-short"]
+description = "Unit tests only"
+run = "go test -race -short -timeout 1m ./..."
+
+[tasks."test:integration"]
+description = "Integration tests (build tag) with race detector"
+# sqlite_fts5 must be repeated explicitly: -tags on the command line replaces
+# (not extends) the GOFLAGS default at the env block top, so omitting it would
+# drop FTS5 from the build and break every test that hits episodes_fts.
+run = "go test -tags='integration sqlite_fts5' -race -timeout 10m ./..."
+
+[tasks.coverage]
+description = "HTML coverage report (writes coverage.html; open it yourself)"
+run = ["go test -race -coverprofile=coverage.out -covermode=atomic ./...", "go tool cover -html=coverage.out -o coverage.html"]
+
+[tasks."coverage:ci"]
+description = "Generate coverage.out for Codecov upload (CI; no HTML, no race detector since the gate-run already did one)"
+run = "go test -short -coverprofile=coverage.out -covermode=atomic -coverpkg=./internal/... ./..."
+
+[tasks.bench]
+description = "Run all benchmarks with allocations"
+run = "go test -bench=. -benchmem -run=^$ ./..."
+
+[tasks."pprof:cpu"]
+description = "Capture 30s CPU profile from running maz (must be running with --debug-addr)"
+run = "go tool pprof -http=:8080 http://localhost:6060/debug/pprof/profile?seconds=30"
+
+[tasks."pprof:mem"]
+description = "Capture heap profile"
+run = "go tool pprof -http=:8080 http://localhost:6060/debug/pprof/heap"
+
+[tasks.build]
+description = "Build maz binary"
+depends = ["setup-graph"]
+run = '''
+VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+go build -ldflags="-X github.com/mo-cmyk/mazarbul/internal/version.Version=${VERSION}" -o bin/maz ./cmd/maz
+'''
+
+[tasks.dev]
+description = "Run maz with hot reload (isolated data dir)"
+run = "air -c .air.toml"
+
+[tasks.demo]
+description = "Record TUI demos via VHS (writes GIFs to docs/demos/)"
+run = "find docs/demos -name '*.tape' -exec vhs {} \\;"
+
+[tasks."tui:snap"]
+description = "Update teatest snapshots for TUI"
+run = "go test -run TestTUI -update ./internal/tui/..."
+
+[tasks."devstack:up"]
+description = "Bootstrap local dev environment"
+run = "./scripts/devstack up"
+
+[tasks."devstack:down"]
+description = "Tear down local dev environment"
+run = "./scripts/devstack down"
+
+[tasks.eval]
+description = "Run LongMemEval harness (50 questions, ~45min) and emit eval/REPORT.md"
+depends = ["build"]
+run = '''
+set -euo pipefail
+PYTHON=python3.13
+# Create venv if not present; re-install if pyproject.toml changed.
+if [ ! -f eval/.venv/bin/python ]; then
+  $PYTHON -m venv eval/.venv
+fi
+eval/.venv/bin/pip install setuptools wheel --quiet
+eval/.venv/bin/pip install -e eval/longmemeval --quiet
+# Run the harness (default 50 questions; pass --questions 500 for the full benchmark).
+eval/.venv/bin/python eval/longmemeval/run.py --tier s
+'''
+
+[tasks."smoke-first-run"]
+description = "End-to-end smoke test: build maz, init, remember, recall"
+run = "bash scripts/smoke-first-run.sh"
+
+[tasks."smoke-omnigraph-wave"]
+description = "E2E smoke for the Omnigraph-parity wave: schema preview, saved, feedback loop, load, draft staging"
+run = "bash scripts/smoke-omnigraph-wave.sh"
+
+[tasks.ci]
+description = "Full CI gate"
+depends = ["fmt", "lint", "test", "build"]

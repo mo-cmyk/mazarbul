@@ -1,0 +1,7 @@
+{
+  "vocabulary": "skos",
+  "snapshotVersion": "2009-08-18",
+  "snapshotDate": "2026-06-07",
+  "sourceURL": "https://www.w3.org/2004/02/skos/core",
+  "notes": "Curated offline snapshot of SKOS (Simple Knowledge Organization System) core classes. Canonical namespace is http://www.w3.org/2004/02/skos/core#. Full specification at https://www.w3.org/TR/skos-reference/."
+}

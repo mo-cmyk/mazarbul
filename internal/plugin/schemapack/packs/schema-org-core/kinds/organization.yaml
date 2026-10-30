@@ -1,0 +1,21 @@
+name: extension:schema_org:organization
+displayName: Organization (schema.org)
+description: A company, institution, government body, or other collective as defined by schema.org.
+extends: organization
+sameAs:
+  - https://schema.org/Organization
+  - http://xmlns.com/foaf/0.1/Organization
+propertySchema:
+  type: object
+  properties:
+    legalName:
+      type: string
+      description: The official name of the organization (e.g. as used for legal purposes).
+    foundingDate:
+      type: string
+      format: date
+      description: Date of establishment (ISO 8601).
+    url:
+      type: string
+      format: uri
+      description: URL of the organization's primary web presence.

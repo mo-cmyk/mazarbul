@@ -1,0 +1,29 @@
+{
+  "mentions": [
+    {
+      "kind": "person",
+      "displayName": "Frodo",
+      "extractionText": "Frodo",
+      "sourceSpan": {"startChar": 0, "endChar": 5},
+      "groundingScore": 1.0
+    },
+    {
+      "kind": "organization",
+      "displayName": "Erebor Inc.",
+      "extractionText": "Erebor Inc.",
+      "sourceSpan": {"startChar": 22, "endChar": 33},
+      "groundingScore": 1.0
+    },
+    {
+      "kind": "organization",
+      "displayName": "Rivendell",
+      "extractionText": "Rivendell",
+      "sourceSpan": {"startChar": 51, "endChar": 60},
+      "groundingScore": 1.0
+    }
+  ],
+  "relations": [
+    {"subjectMentionIdx": 0, "predicate": "works_at", "objectMentionIdx": 1},
+    {"subjectMentionIdx": 0, "predicate": "works_at", "objectMentionIdx": 2}
+  ]
+}

@@ -1,0 +1,19 @@
+name: extension:schema_org:creativework
+displayName: Creative Work (schema.org)
+description: A creative work such as a book, movie, or software as defined by schema.org.
+extends: document
+sameAs:
+  - https://schema.org/CreativeWork
+propertySchema:
+  type: object
+  properties:
+    author:
+      type: string
+      description: Name of the author or creator.
+    datePublished:
+      type: string
+      format: date
+      description: Publication date (ISO 8601).
+    license:
+      type: string
+      description: License under which the work is released.

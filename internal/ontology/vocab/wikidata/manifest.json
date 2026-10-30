@@ -1,0 +1,7 @@
+{
+  "vocabulary": "wikidata",
+  "snapshotVersion": "2026-06-07",
+  "snapshotDate": "2026-06-07",
+  "sourceURL": "https://www.wikidata.org/wiki/Wikidata:Main_Page",
+  "notes": "Curated offline snapshot of 25 commonly-referenced Wikidata entity classes identified by Q-IDs. Canonical IRI pattern is http://www.wikidata.org/entity/Q<id>. Full Wikidata exports available via SPARQL CONSTRUCT or dump downloads. Use --from-file with a SPARQL export for a broader import."
+}

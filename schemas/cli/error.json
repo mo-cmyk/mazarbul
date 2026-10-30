@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mazarbul.dev/schemas/cli/error.json",
+  "title": "ErrorEnvelope",
+  "description": "AIP-193 error envelope emitted by maz commands on failure.",
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "object",
+      "description": "The structured error.",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "AIP-193 error code string, e.g. INVALID_ARGUMENT, NOT_FOUND.",
+          "examples": ["INVALID_ARGUMENT", "NOT_FOUND", "INTERNAL"]
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error message."
+        },
+        "details": {
+          "type": "object",
+          "description": "Structured additional context, key-value pairs.",
+          "additionalProperties": true
+        }
+      },
+      "required": ["code", "message"]
+    }
+  },
+  "required": ["error"]
+}

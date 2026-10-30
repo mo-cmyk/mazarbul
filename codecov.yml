@@ -1,0 +1,66 @@
+# Codecov configuration for Mazarbul.
+#
+# We're pre-alpha with most packages still stubs. Thresholds are
+# intentionally LENIENT and informational-only initially so coverage
+# uploads happen on every PR (giving us trend visibility) without
+# blocking merges until we have enough real code to justify a gate.
+#
+# Ratchet up project_threshold once M1 lands and the kernel/MCP/plugin
+# packages have real test surfaces. Pattern: start informational, flip
+# to blocking once we're consistently at-or-above the threshold for
+# two release cycles.
+
+coverage:
+  status:
+    project:
+      default:
+        # Target the previous coverage on the base branch ("auto") and
+        # allow a 5% slip during pre-alpha churn. Tightens later.
+        target: auto
+        threshold: 5%
+        # Pre-alpha: report only, never block merge. Flip to false once
+        # the project is past v0.3.
+        informational: true
+        if_ci_failed: ignore
+        only_pulls: false
+    patch:
+      default:
+        # New / changed code should be at least 60% covered. Kept
+        # lenient because Mazarbul has a lot of thin glue code (TUI
+        # rendering, CLI scaffolding).
+        target: 60%
+        threshold: 0%
+        informational: true
+        if_ci_failed: ignore
+        only_pulls: true
+
+# Codecov comment on every PR. Layout shows reach (project effect),
+# diff (patch effect), and changed files. Annotations show line-level
+# coverage gaps inline on the PR diff.
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# Don't count these toward coverage. The list is intentionally narrow
+# at pre-alpha. Extend as we add wrappers / generated code / external
+# API clients that we can't meaningfully unit-test.
+ignore:
+  # Test files themselves
+  - "**/*_test.go"
+  # Test helpers
+  - "internal/testutil/**"
+  # Build-time injected variables (single `var Version = "dev"` line)
+  - "internal/version/**"
+  # Entry point with no logic
+  - "cmd/maz/main.go"
+  # Generated code (none yet, but reserve the path)
+  - "gen/**"
+  # Stub packages get excluded until they hold real code. Remove these
+  # one-by-one as the corresponding M1+ work lands.
+  - "internal/kernel/**"
+  - "internal/plugin/**"
+  - "internal/mcp/**"
+  - "internal/observability/**"

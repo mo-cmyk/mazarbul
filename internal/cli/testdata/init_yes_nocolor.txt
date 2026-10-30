@@ -1,0 +1,4 @@
+│ data directory: /tmp/maz-test-snapshot
+│ chat: anthropic (claude-opus-4-7)
+│ embeddings: ollama (snowflake-arctic-embed2)
+│ Ready.  next: maz recall <token>

@@ -1,0 +1,23 @@
+# Mazarbul plugin manifest for the Anthropic chat provider.
+#
+# M1 ships this provider built-in to the binary; the M3 plugin loader will
+# read this manifest from disk when Anthropic moves to a swappable plugin.
+# Keep this file the canonical reference for the manifest shape; mirror any
+# field changes into agent-docs/plugins.md.
+
+name = "anthropic"
+version = "0.1.0"
+category = "provider"
+slot = "chat"
+description = "Anthropic Claude chat provider (Messages API, non-streaming)"
+license = "Apache-2.0"
+homepage = "https://github.com/mo-cmyk/mazarbul"
+
+[entrypoint]
+type = "go-plugin"
+binary = "anthropic-provider"
+
+[config]
+api_key_env = "ANTHROPIC_API_KEY"
+default_model = "claude-opus-4-7"
+anthropic_version = "2023-06-01"

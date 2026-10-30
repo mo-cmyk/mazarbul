@@ -1,0 +1,68 @@
+predicates:
+  - predicate: registered_with
+    kind: functional
+    description: Subject German company is registered with the object registration court (Registergericht).
+    subjectKinds:
+      - extension:business_de:company
+    objectKinds:
+      - organization
+    sameAs:
+      - http://www.wikidata.org/entity/P3320
+    propertySchema:
+      type: object
+      properties:
+        hrb:
+          type: string
+          description: Handelsregisternummer (HRB/HRA) under which the company is registered.
+        registrationDate:
+          type: string
+          format: date
+          description: Date the registration became effective (ISO 8601).
+
+  - predicate: manages_company
+    kind: non-functional
+    description: Subject managing director (Geschäftsführer) manages the object German company. Use this pack-specific predicate instead of the global manages predicate to avoid conflicting with non-functional semantics elsewhere.
+    subjectKinds:
+      - extension:business_de:managing_director
+    objectKinds:
+      - extension:business_de:company
+    sameAs:
+      - https://schema.org/employee
+    propertySchema:
+      type: object
+      properties:
+        appointedDate:
+          type: string
+          format: date
+          description: Date the person was appointed as managing director (ISO 8601).
+        representationPower:
+          type: string
+          description: Scope of representation authority (e.g. Einzelvertretungsbefugnis).
+
+  - predicate: owns_share_of
+    kind: non-functional
+    description: Subject shareholder owns a stake in the object German company (Gesellschafter).
+    subjectKinds:
+      - extension:business_de:shareholder
+      - extension:business_de:company
+      - person
+      - organization
+    objectKinds:
+      - extension:business_de:company
+    sameAs:
+      - http://www.wikidata.org/entity/P1830
+    propertySchema:
+      type: object
+      properties:
+        stakePercentage:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Ownership stake as a percentage (0–100).
+        nominalValue:
+          type: number
+          description: Nominal value of the share in EUR (Nennbetrag).
+        roundDate:
+          type: string
+          format: date
+          description: Date of the shareholding entry or last change (ISO 8601).

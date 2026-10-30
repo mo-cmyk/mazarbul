@@ -1,0 +1,97 @@
+# Go binaries and artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/bin/
+/dist/
+# Locally-built maz binary (built to repo root during dev: go build -o maz ./cmd/maz)
+/maz
+
+# Locally-built maz binary (built to repo root during dev: go build -o maz ./cmd/maz).
+/maz
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Test coverage
+coverage/
+coverage.out
+coverage.html
+coverage.*
+
+# Temporary files
+tmp/
+.tmp/
+*.backup
+*.bak
+*.old
+
+# Profiling artifacts
+*.prof
+
+# Mazarbul local data dir (per-worktree SQLite/Kuzu)
+.mazarbul-data/
+
+# Air hot-reload local overrides
+.air.toml.local
+
+# Node.js (for tooling like Mintlify previews, if added later)
+node_modules/
+
+# Vendor (we don't vendor)
+vendor/
+
+# Design-conversation / bootstrap-prompt archive. Kept locally as project
+# provenance, but it's a 7k-line chat log that's just noise in the tree.
+# (NOT internal/prompts/, which is a real Go package and stays tracked.)
+/prompts/
+
+# Eval harness fixtures and runtime artifacts (gitignored; downloaded on first run).
+eval/fixtures/
+eval/REPORT.history.jsonl
+eval/**/__pycache__/
+eval/**/*.egg-info/
+eval/.venv/
+eval/longmemeval/.ruff_cache/
+
+# Claude local workspace notes. Plans are local scratch, never committed.
+# Working notes for the implementer (issue-plan / plan-feature output)
+# stay local; the PR description carries the design narrative. Shared
+# configuration (agents, skills, hooks) stays tracked via explicit paths.
+.claude/plans/
+.claude/memos/
+# Claude runtime files. Generated per-session, not project config.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/subagent-log.txt
+.claude/last-check.md
+.claude/go-strict-state.json
+.claude/stop-counter.txt
+.claude/babysit-state-*.json
+.claude/babysit-audit-archive.jsonl
+.claude/worktrees/
+.mazarbul.toml

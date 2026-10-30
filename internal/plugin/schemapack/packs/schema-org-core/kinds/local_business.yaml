@@ -1,0 +1,18 @@
+name: extension:schema_org:localbusiness
+displayName: Local Business (schema.org)
+description: A particular physical business or branch of an organization.
+extends: organization
+sameAs:
+  - https://schema.org/LocalBusiness
+propertySchema:
+  type: object
+  properties:
+    openingHours:
+      type: string
+      description: Opening hours specification (e.g. Mo-Fr 09:00-17:00).
+    telephone:
+      type: string
+      description: Primary telephone number.
+    priceRange:
+      type: string
+      description: Price range indicator (e.g. $$).

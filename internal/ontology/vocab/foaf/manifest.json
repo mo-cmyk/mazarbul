@@ -1,0 +1,7 @@
+{
+  "vocabulary": "foaf",
+  "snapshotVersion": "0.1",
+  "snapshotDate": "2026-06-07",
+  "sourceURL": "http://xmlns.com/foaf/spec/",
+  "notes": "Curated offline snapshot of the FOAF (Friend of a Friend) vocabulary. Contains the 10 most useful FOAF classes for Mazarbul knowledge-graph construction. Canonical namespace is http://xmlns.com/foaf/0.1/. Full FOAF spec at http://xmlns.com/foaf/spec/."
+}

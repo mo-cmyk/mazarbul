@@ -1,0 +1,5 @@
+name        = "decision-trace"
+version     = "0.1.0"
+description = "Decision provenance vocabulary: decisions, insights, and principles with first-class traceability between them."
+category    = "extension"
+kind        = "schema-pack"

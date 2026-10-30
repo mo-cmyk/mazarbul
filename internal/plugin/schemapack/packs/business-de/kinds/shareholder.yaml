@@ -1,0 +1,17 @@
+name: extension:business_de:shareholder
+displayName: Shareholder (DE)
+description: A person or entity holding shares in a German company (Gesellschafter).
+extends: person
+sameAs:
+  - https://schema.org/Person
+  - http://www.wikidata.org/entity/Q43229
+propertySchema:
+  type: object
+  properties:
+    dateOfBirth:
+      type: string
+      format: date
+      description: Date of birth of the shareholder (ISO 8601).
+    residenceCity:
+      type: string
+      description: City of residence as stated in the Handelsregister.

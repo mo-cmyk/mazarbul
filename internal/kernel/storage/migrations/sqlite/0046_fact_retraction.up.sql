@@ -1,0 +1,22 @@
+-- 0046_fact_retraction: add the retracted_at tombstone column to facts.
+--
+-- Fact retraction is the scalar-slot counterpart to relationRetracted. A
+-- relation is an independent row, so closing it sets valid_until directly;
+-- a Fact, by contrast, is one value in a (subject_uid, state_key, scope) slot
+-- whose validity window + supersede chain are a PURE FOLD over the rows present
+-- (see reconcileFactSlot). Closing a fact by writing event_end directly would
+-- therefore be undone the next time the slot is reconciled (the fold always
+-- re-opens the chronologically-final row).
+--
+-- retracted_at records the retraction as a durable, convergent input to that
+-- fold instead: a row with a non-NULL retracted_at is never the slot's open
+-- value, and the fold force-closes it at retracted_at with no superseder. The
+-- slot reads as EMPTY (absent) when the chronologically-last row is retracted —
+-- it does NOT fall back to an earlier value. A newer write reopens the slot.
+-- Because the column is a pure fold input and reconcileFactSlot is
+-- deterministic, `maz rebuild` replays factRetracted events to the same
+-- end-state regardless of order.
+--
+--   retracted_at  RFC 3339 Nano instant the value was retracted; NULL = live.
+
+ALTER TABLE facts ADD COLUMN retracted_at TEXT;

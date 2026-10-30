@@ -1,0 +1,18 @@
+name: dt:insight
+displayName: Insight
+description: A distilled observation or learning extracted from evidence, experience, or analysis.
+propertySchema:
+  type: object
+  properties:
+    confidence:
+      type: number
+      minimum: 0
+      maximum: 1
+      description: Subjective confidence in this insight (0.0 = speculative, 1.0 = near-certain).
+    sourceKind:
+      type: string
+      description: Kind of evidence the insight is derived from, e.g. experiment, observation, literature.
+    validFrom:
+      type: string
+      format: date
+      description: Earliest date from which this insight is considered valid (ISO 8601). Absent if always applicable.

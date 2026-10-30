@@ -1,0 +1,18 @@
+name: brain:Project
+displayName: Project
+description: A personal or professional project — anything with a goal and a lifecycle.
+propertySchema:
+  type: object
+  properties:
+    status:
+      type: string
+      description: Current lifecycle stage, e.g. planning, active, paused, completed, abandoned.
+    goal:
+      type: string
+      description: One sentence describing the desired outcome.
+    deadline:
+      type: string
+      description: Target completion date in YYYY-MM-DD format.
+    area:
+      type: string
+      description: Life area this project belongs to, e.g. career, health, learning, relationships.

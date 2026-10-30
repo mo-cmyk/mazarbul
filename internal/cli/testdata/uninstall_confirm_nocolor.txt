@@ -1,0 +1,23 @@
+dry run — nothing will be removed
+
+SAFE (no data loss)
+  ●  Mazarbul daemon launchd agent (io.mazarbul.daemon)
+  ○  Mazarbul watch-fs launchd agent (io.mazarbul.watch-fs)
+  ○  Shell completion snippet in RC file(s)
+  ●  Daemon log file: /HOME/.cache/mazarbul/daemon.log
+
+DESTRUCTIVE (irreversible)
+  ○  Mazarbul-managed Ollama launchd agent (io.mazarbul.ollama); stops Ollama
+  !  Data directory (event log, graph, vault): /tmp/TEST_DATA_DIR
+  !  Keychain: watchword (mazarbul:watchword) — DELETING MAKES ENCRYPTED SYNC UNRECOVERABLE
+  ○  Keychain: signing key (mazarbul:identity:ed25519)
+  ○  Keychain: wrap key (mazarbul:identity:x25519)
+  ○  Keychain: device ID (mazarbul:identity:device)
+  ○  Keychain: Anthropic API key
+  ○  Keychain: OpenAI API key
+  ○  Keychain: Granola API key
+
+MANUAL (print removal command only)
+  →  maz binary: /TEST_BINARY  (rm /TEST_BINARY)
+
+→  run with --yes to remove safe items, --purge to include data directory + keychain

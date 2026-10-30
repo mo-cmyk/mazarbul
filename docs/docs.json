@@ -1,0 +1,20 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Mazarbul",
+  "theme": "mint",
+  "tagline": "The system of records for the era of agents.",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          { "group": "Get started", "pages": ["introduction", "quickstart"] },
+          { "group": "Tutorials", "pages": ["tutorials/index"] },
+          { "group": "How-to guides", "pages": ["how-to/index", "how-to/sync-remote"] },
+          { "group": "Reference", "pages": ["reference/index", "reference/cli"] },
+          { "group": "Explanation", "pages": ["explanation/index", "explanation/architecture"] }
+        ]
+      }
+    ]
+  }
+}

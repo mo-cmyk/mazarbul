@@ -1,0 +1,5 @@
+name        = "crm"
+version     = "0.1.0"
+description = "Lightweight CRM: accounts, contacts, and deals, with an operating playbook for tracking a sales relationship."
+category    = "extension"
+kind        = "schema-pack"

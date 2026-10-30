@@ -1,0 +1,42 @@
+[
+  {
+    "id": "http://purl.org/dc/terms/Agent",
+    "label": "Agent",
+    "comment": "A resource that acts or has the power to act, per DCMI terms."
+  },
+  {
+    "id": "http://purl.org/dc/dcmitype/BibliographicResource",
+    "label": "BibliographicResource",
+    "comment": "A book, article, or other documentary resource."
+  },
+  {
+    "id": "http://purl.org/dc/dcmitype/Collection",
+    "label": "Collection",
+    "comment": "An aggregation of resources."
+  },
+  {
+    "id": "http://purl.org/dc/dcmitype/Dataset",
+    "label": "Dataset",
+    "comment": "Data encoded in a defined structure."
+  },
+  {
+    "id": "http://purl.org/dc/dcmitype/Event",
+    "label": "Event",
+    "comment": "A non-persistent, time-based occurrence."
+  },
+  {
+    "id": "http://purl.org/dc/dcmitype/Image",
+    "label": "Image",
+    "comment": "A visual representation other than text."
+  },
+  {
+    "id": "http://purl.org/dc/dcmitype/Location",
+    "label": "Location",
+    "comment": "A spatial region or named place."
+  },
+  {
+    "id": "http://purl.org/dc/dcmitype/PhysicalObject",
+    "label": "PhysicalObject",
+    "comment": "An inanimate, three-dimensional object or substance."
+  }
+]

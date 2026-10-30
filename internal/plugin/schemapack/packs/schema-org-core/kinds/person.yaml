@@ -1,0 +1,21 @@
+name: extension:schema_org:person
+displayName: Person (schema.org)
+description: A human individual as defined by schema.org.
+extends: person
+sameAs:
+  - https://schema.org/Person
+  - http://xmlns.com/foaf/0.1/Person
+propertySchema:
+  type: object
+  properties:
+    birthDate:
+      type: string
+      format: date
+      description: Date of birth (ISO 8601).
+    jobTitle:
+      type: string
+      description: The person's job title.
+    email:
+      type: string
+      format: email
+      description: Primary e-mail address.

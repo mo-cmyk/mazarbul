@@ -1,0 +1,9 @@
+environment: ci
+data_dir: "/tmp/mazarbul-ci"
+tui:
+  theme: nocolor
+log:
+  level: warn
+  format: json
+debug:
+  addr: ""

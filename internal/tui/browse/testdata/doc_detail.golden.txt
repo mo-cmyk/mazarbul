@@ -1,0 +1,21 @@
+› (all)                                                                         
+╭───────────────────────────────────────────────────────────╮  neighbors        
+│                                                           │                   
+│     Erebor migration kickoff                              │  ◇▸ Erebor roadmap
+│                                                           │                   
+│    We aligned on moving the RFC integration. Sam owns     │                   
+│  the                                                      │                   
+│    rollout.                                               │                   
+│                                                           │                   
+│    ## Links                                               │                   
+│                                                           │                   
+│    • → Ring Mk 4000 / RFC 1149                            │                   
+│    • ⚠ Project Eriador                                    │                   
+│                                                           │                   
+│    ## Linked from                                         │                   
+│                                                           │                   
+│    • ← Erebor roadmap                                     │                   
+│                                                           │                   
+│                                                           │                   
+╰───────────────────────────────────────────────────────────╯                   
+esc: back                                                                       

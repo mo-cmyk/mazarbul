@@ -1,0 +1,21 @@
+-- Migration 0032: record the signed asserter on every relation (#213, D3).
+--
+-- Authorized signed retraction needs to know WHO originally asserted a
+-- relation so the team-scope close authority can compare it against the
+-- retraction's signed author. The SIGNED authority is ev.Author.PrincipalUID
+-- (#209) — there is no forgeable payload field — so writeRelationRow stamps
+-- this column from the relation event's author.
+--
+-- A team-scope relationRetracted may close a relation ONLY when its signed
+-- author equals this asserted_by_principal OR the team's genesis owner. The
+-- authority filter lives in recomputeRelationClose (the same fold #205 runs
+-- from both applyRelation and applyRelationRetracted), so the close stays
+-- order-independent: a tombstone that lands before its relation cannot yet be
+-- authorized (asserter unknown), and is re-evaluated when the relation arrives.
+--
+-- NULL = the asserter is unknown (a legacy pre-0032 row, or an event with an
+-- empty author). Such a relation is closable in team scope ONLY by the genesis
+-- owner, never by an arbitrary asserter match. A `maz rebuild` repopulates the
+-- column accurately from each relation event's author.
+
+ALTER TABLE relations ADD COLUMN asserted_by_principal TEXT;

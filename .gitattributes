@@ -1,0 +1,23 @@
+# Default: normalize line endings to LF for text files
+* text=auto eol=lf
+
+# Go sources, configs, and docs are text
+*.go      text eol=lf
+*.md      text eol=lf
+*.mdx     text eol=lf
+*.yaml    text eol=lf
+*.yml     text eol=lf
+*.toml    text eol=lf
+*.json    text eol=lf
+*.sh      text eol=lf
+
+# Binary file types
+*.gif     binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.ico     binary
+*.prof    binary
+*.db      binary
+*.sqlite  binary
+*.sqlite3 binary

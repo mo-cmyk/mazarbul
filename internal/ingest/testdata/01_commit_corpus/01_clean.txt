@@ -1,0 +1,4 @@
+feat(payments): add idempotency keys to the charge endpoint
+
+The charge endpoint now accepts an Idempotency-Key header and dedups retries
+within a 24h window. Carol reviewed the design; Dave owns the rollout.

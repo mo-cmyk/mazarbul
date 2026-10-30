@@ -1,0 +1,22 @@
+name: notes:Source
+displayName: Source
+description: A reference a note draws on — a book, article, paper, talk, or URL.
+sameAs:
+  - https://schema.org/CreativeWork
+propertySchema:
+  type: object
+  properties:
+    sourceType:
+      type: string
+      description: Kind of source, e.g. book, article, paper, talk, video, url.
+    author:
+      type: string
+      description: Author or creator of the source, if known.
+    url:
+      type: string
+      format: uri
+      description: Canonical link to the source.
+    retrievedAt:
+      type: string
+      format: date
+      description: Date the source was read or captured (ISO 8601).

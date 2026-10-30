@@ -1,0 +1,23 @@
+[
+  {
+    "id": "http://www.w3.org/2004/02/skos/core#Concept",
+    "label": "Concept",
+    "comment": "An idea or notion; a unit of thought in a knowledge organization system."
+  },
+  {
+    "id": "http://www.w3.org/2004/02/skos/core#ConceptScheme",
+    "label": "ConceptScheme",
+    "comment": "A set of concepts, optionally including statements about semantic relationships between those concepts."
+  },
+  {
+    "id": "http://www.w3.org/2004/02/skos/core#Collection",
+    "label": "Collection",
+    "comment": "A meaningful collection of concepts."
+  },
+  {
+    "id": "http://www.w3.org/2004/02/skos/core#OrderedCollection",
+    "label": "OrderedCollection",
+    "comment": "An ordered collection of concepts, where the order is meaningful.",
+    "subClassOf": "http://www.w3.org/2004/02/skos/core#Collection"
+  }
+]

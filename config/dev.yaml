@@ -1,0 +1,9 @@
+environment: dev
+data_dir: ""    # default: $XDG_DATA_HOME/mazarbul or ~/.local/share/mazarbul
+tui:
+  theme: defender
+log:
+  level: info
+  format: text
+debug:
+  addr: ""      # set to e.g. localhost:6060 to enable pprof

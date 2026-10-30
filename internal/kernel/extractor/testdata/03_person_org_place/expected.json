@@ -1,0 +1,29 @@
+{
+  "mentions": [
+    {
+      "kind": "person",
+      "displayName": "Eowyn",
+      "extractionText": "Eowyn",
+      "sourceSpan": {"startChar": 0, "endChar": 5},
+      "groundingScore": 1.0
+    },
+    {
+      "kind": "organization",
+      "displayName": "Rivendell",
+      "extractionText": "Rivendell",
+      "sourceSpan": {"startChar": 32, "endChar": 41},
+      "groundingScore": 1.0
+    },
+    {
+      "kind": "place",
+      "displayName": "Zurich",
+      "extractionText": "Zurich",
+      "sourceSpan": {"startChar": 45, "endChar": 51},
+      "groundingScore": 1.0
+    }
+  ],
+  "relations": [
+    {"subjectMentionIdx": 0, "predicate": "works_at", "objectMentionIdx": 1},
+    {"subjectMentionIdx": 1, "predicate": "located_in", "objectMentionIdx": 2}
+  ]
+}

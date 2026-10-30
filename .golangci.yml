@@ -1,0 +1,535 @@
+# golangci-lint configuration for Mazarbul
+# Comprehensive linting enforcing Google Go Style Guide and Go best practices
+# 46 enabled linters + 3 formatters - strict quality enforcement
+# https://golangci-lint.run/usage/configuration/
+
+version: "2"
+
+run:
+  # 20m matches the `mise run lint` task. The 5m default was exceeded during
+  # package loading when several cgo-heavy golangci-lint runs share the build
+  # cache concurrently (see allow-parallel-runners below); 10m then contended
+  # past its deadline on a cold ubuntu CI runner where `ci` runs lint alongside
+  # the 611s test phase (PR #302). The extra headroom lets the loader finish
+  # instead of erroring with "Timeout exceeded" / "context deadline exceeded".
+  timeout: 20m
+  tests: true
+  modules-download-mode: readonly
+  # allow-parallel-runners lets concurrent golangci-lint invocations share the
+  # cache instead of erroring with "parallel golangci-lint is running". Several
+  # PostToolUse/Stop hooks (and CI lanes) can lint the tree at the same time;
+  # golangci-lint writes cache entries atomically (temp file + rename), so the
+  # shared cache stays consistent under concurrent readers/writers.
+  allow-parallel-runners: true
+  # sqlite_fts5 enables the FTS5 module inside the mattn/go-sqlite3 CGO build.
+  # The linter must see the FTS5 codepath as compilable; matches GOFLAGS in .mise.toml.
+  # integration enables the mcptest harness package and e2e test files so the
+  # linter can typecheck them alongside the unit-only code.
+  build-tags:
+    - sqlite_fts5
+    - integration
+
+output:
+  formats:
+    text:
+      path: stdout
+      colors: true
+
+# Formatters
+formatters:
+  enable:
+    - gofumpt      # Stricter gofmt (extra formatting rules)
+    - goimports
+    - gci
+  settings:
+    gci:
+      sections:
+        - standard                          # Standard library
+        - default                           # External packages
+        - prefix(github.com/mo-cmyk/mazarbul)  # Local packages
+      custom-order: true
+    goimports:
+      local-prefixes:
+        - github.com/mo-cmyk/mazarbul
+
+# Linters to enable
+linters:
+  exclusions:
+    # Skip generated code and vendor directories
+    paths:
+      - gen/
+      - vendor/
+      - bin/
+      - scripts/
+      - ".*_gen\\.go$"
+
+    # Exclude certain linters in test files and specific directories
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec           # Security checks less critical in tests
+          - errcheck        # Error handling less strict in tests (Google testing.Setenv pattern)
+          - contextcheck    # Test helpers call constructors without context propagation
+          - goconst         # Test data can have repeated strings
+          - gocyclo         # Tests can be complex
+          - gocognit        # Tests can be complex
+          - unparam         # Test helpers often have unused params
+          - godoclint       # Tests don't need full documentation
+          - godot           # Test comments don't need periods
+          - stylecheck      # Less strict style in tests
+          - gochecknoglobals # Test globals (fixtures, testdata) are common
+          - gochecknoinits  # Test init() for setup is acceptable
+          - wrapcheck       # Test error handling is simpler
+          - tparallel       # Not all tests should be parallel
+          - nilnil          # Test handlers often return (nil, nil) to simulate success
+
+      # Struct field alignment not critical in test code (table-driven tests use struct literals)
+      - path: _test\.go
+        text: "fieldalignment"
+
+      # Struct field alignment not critical in configuration/credential structs
+      # These are singletons or low-frequency allocations, not hot path
+      - path: internal/config/config\.go
+        text: "fieldalignment"
+
+      # Unused params common in test handlers/mocks (e.g., func(ctx, req))
+      - path: _test\.go
+        text: "unused-parameter"
+
+      # Exclude generated code from all linters
+      - path: gen/
+        linters:
+          - all
+
+      # Allow test helpers to be less strict
+      - path: internal/testutil/
+        linters:
+          - errcheck
+          - gosec
+          - gocritic
+          - godoclint
+          - godot
+          - stylecheck
+
+      # Package comment not required for main packages, allow init() for CLI setup.
+      - path: cmd/
+        linters:
+          - revive
+          - gochecknoinits
+        text: "package-comments"
+
+      # Build-time injected variables via -ldflags (single source of truth).
+      - path: internal/version/
+        linters:
+          - gochecknoglobals
+
+      # Theme registry uses package-global state by design; theme files self-register in init().
+      - path: internal/tui/style/
+        linters:
+          - gochecknoglobals
+          - gochecknoinits
+          - ireturn          # Theme interface methods return lipgloss.TerminalColor (third-party interface)
+          - gosec            # G304 for user-supplied theme file paths is expected behavior
+          - fieldalignment   # Theme structs are singletons; not hot path
+
+      # CLI commands wrap stdlib fmt/json/io errors; wrapping adds no information.
+      - path: internal/cli/
+        linters:
+          - wrapcheck
+          - gosec            # G108 pprof endpoint is intentional, behind --debug-addr flag
+          - revive           # deep-exit OK in cli.Execute (conceptually main)
+
+      # TUI package wraps Charm libs whose errors are already informative; Bubble Tea models
+      # are passed by value per Elm pattern (hugeParam expected); mode.go uses package state.
+      - path: internal/tui/
+        linters:
+          - wrapcheck
+          - ireturn
+          - gocritic         # hugeParam: Bubble Tea models pass by value per Elm pattern
+          - fieldalignment   # Bubble Tea model layout is library-dictated
+          - gochecknoglobals # mode.go: process-wide TUI/CLI/JSON state
+
+      # Configuration loader wraps yaml.v3 errors with file path context; G304 expected for config files.
+      - path: internal/config/
+        linters:
+          - wrapcheck
+          - gosec
+
+      # Kernel interfaces intentionally return sub-interface types (GraphConn,
+      # VectorConn, FTSConn) for storage backends. Noop receivers are large
+      # because they include placeholder method stubs; copying by value is fine
+      # since the structs are zero-sized.
+      - path: internal/kernel/
+        linters:
+          - ireturn
+          - gocritic
+
+      # MCP interfaces return Server / Tool implementations through methods;
+      # the surface is designed for swap (mark3labs/mcp-go vs hand-rolled).
+      - path: internal/mcp/
+        linters:
+          - ireturn
+          - gocritic
+
+      # Daemon wires mcp.Server (via opts.NewServer, for test mocks) and
+      # kernel.ChatProvider (via buildChatProvider, for provider swap).
+      # Both are interface returns by design — same rationale as
+      # internal/mcp/.
+      - path: internal/daemon/
+        linters:
+          - ireturn
+
+      # Sync interfaces return Remote and ChunkStore implementations through
+      # provider methods; the entire point is provider-swappability.
+      - path: internal/sync/
+        linters:
+          - ireturn
+          - gocritic
+
+      # Entity resolver returns Resolver via the M2 factory; Noop receivers
+      # carry struct-shaped placeholders by design.
+      - path: internal/entity/
+        linters:
+          - ireturn
+          - gocritic
+
+      # Enrichment proposals carry struct-shaped placeholders; Noop receivers
+      # are wide on purpose.
+      - path: internal/enrichment/
+        linters:
+          - ireturn
+          - gocritic
+
+      # Observability facades return Counter / Histogram / SpanCloser through
+      # provider methods (the whole point is provider-swappability between
+      # zap / OTel / noop).
+      - path: internal/observability/
+        linters:
+          - ireturn
+          - gocritic
+
+      # Package names "plugin", "sync", "version" intentionally shadow Go
+      # stdlib package names. They are documented in their package
+      # docstrings and never imported in the same file as their stdlib
+      # counterparts: each consumer uses the import path
+      # github.com/mo-cmyk/mazarbul/internal/{plugin,sync,version} so
+      # there is no ambiguity at the call site. Renaming would ripple
+      # through every consumer for a style nit; the names map directly
+      # to Mazarbul's domain vocabulary (plugin categories, Moria sync,
+      # build version).
+      - path: internal/(plugin|sync|version)/
+        linters:
+          - revive
+        text: "var-naming: avoid package names that conflict with Go standard library"
+
+  enable:
+    # ===== Error Checking (Critical) =====
+    - errcheck        # Checks for unchecked errors
+    - errorlint       # Find code that will cause problems with error wrapping
+    - wrapcheck       # Errors from external packages must be wrapped
+
+    # ===== Safety & Bug Prevention =====
+    - copyloopvar     # Checks for pointers to loop variables (common Go gotcha)
+    - nolintlint      # Reports ill-formed or insufficient nolint directives
+    - nilnil          # Detect functions returning (nil, nil)
+    - exhaustive      # Enum switch statements must handle all cases
+    - asasalint       # Catches []any passed as any in variadic funcs
+    - bidichk         # Dangerous unicode sequences (trojan source attacks)
+    - durationcheck   # Catches duration*duration bugs
+    - fatcontext      # Nested contexts in loops
+
+    # ===== Code Simplification =====
+    - staticcheck     # Go static analysis (includes gosimple in v2)
+    - unconvert       # Remove unnecessary type conversions
+    - usestdlibvars   # Use stdlib constants (http.MethodGet not "GET")
+    - intrange        # Go 1.22+ integer ranges (for i := range 10)
+
+    # ===== Style and Formatting (Google Style Guide) =====
+    - godot           # Comments must be complete sentences with period
+    - revive          # Fast, configurable linter (golint replacement)
+    - errname         # Error naming: ErrFoo, FooError conventions
+    - dupword         # Catches "the the" duplicate words in comments
+    - canonicalheader # HTTP header canonicalization
+    # Note: stylecheck is merged into staticcheck in golangci-lint v2
+
+    # ===== Documentation (Google Style Guide) =====
+    - godoclint       # Comprehensive exported symbol documentation enforcement
+
+    # ===== Best Practices =====
+    - govet           # Reports suspicious constructs
+    - ineffassign     # Detects unused variable assignments
+    - unused          # Checks for unused code
+    - gocritic        # Comprehensive checks (diagnostic + performance only)
+    # - unparam       # Reports unused function parameters (too noisy for stubs, enable after v0.1.0)
+    - nakedret        # Finds naked returns in long functions
+
+    # ===== Interface Design (Google Style) =====
+    - ireturn         # Return concrete types, not interfaces
+
+    # ===== Security =====
+    - gosec           # Security problems (SQL injection, etc.)
+
+    # ===== Context Handling =====
+    - contextcheck    # Check context.Context is passed correctly
+    - noctx           # Find HTTP requests without context.Context
+
+    # ===== Resource Management =====
+    - bodyclose       # Checks HTTP response body is closed
+    - rowserrcheck    # Checks sql.Rows.Err is checked
+    - sqlclosecheck   # Checks sql.Rows/Stmt are closed
+    - nilerr          # Finds code that returns nil even if it checks that error is not nil
+
+    # ===== Complexity =====
+    - gocyclo         # Cyclomatic complexity
+    - gocognit        # Cognitive complexity
+
+    # ===== Performance =====
+    - prealloc        # Find slice declarations that could be preallocated
+    - goconst         # Finds repeated strings that could be constants
+    - perfsprint      # Faster string formatting (strconv vs fmt.Sprintf)
+
+    # ===== Code Quality =====
+    - misspell        # Finds commonly misspelled English words
+    - testifylint     # Enforces testify best practices
+
+    # ===== Code Organization (Google Style) =====
+    - gochecknoinits  # Discourage init() functions
+    - gochecknoglobals # Discourage global variables
+
+    # ===== Import Control =====
+    - depguard        # Ban dangerous/deprecated packages
+
+    # ===== Testing =====
+    - tparallel       # Detect missing t.Parallel() in tests
+
+    # ===== Stack-Specific (OTEL, Zap) =====
+    - spancheck       # OpenTelemetry span handling (SetStatus, End)
+    - loggercheck     # Zap logger key-value pair validation
+
+  disable:
+    - funlen          # Function length is subjective
+    - lll             # Line length handled by gofmt
+    - wsl             # Whitespace linter too opinionated
+    - cyclop          # Duplicate of gocyclo
+    - dupl            # Too many false positives
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        # pflag accessors for known flags can never fail; the idiomatic Go
+        # pattern is `v, _ := cmd.Flags().GetString("foo")` when the flag is
+        # declared by the same command.
+        - (*github.com/spf13/pflag.FlagSet).GetString
+        - (*github.com/spf13/pflag.FlagSet).GetBool
+        - (*github.com/spf13/pflag.FlagSet).GetInt
+        - (*github.com/spf13/pflag.FlagSet).GetInt64
+        - (*github.com/spf13/pflag.FlagSet).GetDuration
+        - (*github.com/spf13/pflag.FlagSet).GetStringSlice
+        # Common close/cleanup operations
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Conn).Close
+        - (*os.File).Close
+        - io.WriteString
+        - os.Setenv
+
+    govet:
+      enable-all: true
+      disable:
+        - shadow         # Too strict, many false positives
+        - fieldalignment # Micro-optimization; revisit only for proven hot paths
+
+    gocyclo:
+      min-complexity: 15  # Reasonable threshold for new code
+
+    gocognit:
+      min-complexity: 20  # Reasonable threshold for new code
+
+    nakedret:
+      max-func-lines: 30  # Naked returns only in very short functions
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    godot:
+      scope: declarations  # Only doc comments need periods (Google style)
+      capital: true        # Enforce capital letter at start
+
+    gocritic:
+      enabled-tags:
+        - diagnostic  # Real bugs and suspicious constructs
+        - performance # Performance optimizations
+      disabled-checks:
+        - commentedOutCode  # Too noisy
+
+    revive:
+      rules:
+        # ===== Google Go Style Guide (Critical) =====
+        - name: context-as-argument
+          severity: error
+          arguments:
+            - allowTypesBefore: "*testing.T"  # Allow t before ctx in tests
+
+        - name: error-return
+          severity: error
+
+        - name: error-naming
+          severity: error  # Error variables must be named 'err' not 'e'
+
+        - name: error-strings
+          severity: error  # Error strings should not be capitalized or end with punctuation
+
+        - name: var-naming
+          severity: warning
+          arguments:
+            - ["ID", "URL", "UUID", "HTTP", "API", "JSON", "JSONL", "MCP", "CLI", "TUI", "TTY", "ULID", "TOML", "YAML"]  # Common initialisms
+
+        - name: receiver-naming
+          severity: error  # Enforce short, consistent receiver names
+
+        - name: package-comments
+          severity: warning  # Packages should have documentation
+
+        # ===== Code Quality =====
+        - name: exported
+          severity: warning
+
+        - name: blank-imports
+          severity: error
+
+        - name: time-naming
+          severity: error
+
+        - name: var-declaration
+          severity: warning
+
+        - name: unexported-return
+          severity: warning
+
+        - name: indent-error-flow
+          severity: warning
+
+        - name: errorf
+          severity: error
+
+        - name: empty-block
+          severity: warning
+
+        - name: superfluous-else
+          severity: warning
+
+        - name: unused-parameter
+          severity: warning
+
+        - name: unreachable-code
+          severity: error
+
+        - name: range-val-address
+          severity: error
+
+        - name: increment-decrement
+          severity: warning  # Use i++ not i += 1
+
+        - name: range-val-in-closure
+          severity: error  # Range variable captured in closure
+
+        - name: modifies-value-receiver
+          severity: warning  # Receiver should be pointer if modified
+
+        - name: early-return
+          severity: warning  # Reduce nesting with early returns
+
+        - name: confusing-naming
+          severity: warning  # Similar names can be confused
+
+        - name: deep-exit
+          severity: warning  # Avoid os.Exit in library code
+
+        - name: defer
+          severity: warning  # Check defer is used correctly
+
+    gosec:
+      severity: medium
+      confidence: medium
+      excludes:
+        - G104  # Errors handled by errcheck
+        - G115  # Integer overflow int->int32 (false positives on bounded values)
+        - G404  # Weak random number generator (okay for non-crypto use)
+
+    testifylint:
+      enable-all: true
+      disable:
+        - go-require  # require is fine in tests
+
+    # ===== New Linter Settings (Google Style Enhancement) =====
+
+    # Note: stylecheck is merged into staticcheck in v2, configured via staticcheck settings
+
+    godoclint:
+      require-doc:
+        ignore-unexported: true
+        include-tests: false
+
+    wrapcheck:
+      ignore-package-globs:
+        - github.com/mo-cmyk/mazarbul/*  # Internal packages don't need wrapping
+      ignore-sigs:
+        # Standard library error creation - these ARE the wrapping mechanisms
+        - fmt.Errorf(format string, a ...any) error
+        - fmt.Errorf(format string, a ...any) (err error)
+        - errors.New(text string) error
+        # Zap logger sync - cleanup operation
+        - .Sync() error
+
+    ireturn:
+      allow:
+        - error                           # Returning error interface is standard
+        - empty                           # interface{} / any
+        - stdlib                          # Standard library interfaces
+        - anon                            # Anonymous interfaces
+        - github.com/mo-cmyk/mazarbul/internal/kernel/embedder.Embedder  # wiring returns Embedder interface for nil-disabled path
+        - golang.org/x/crypto/ssh.PublicKey  # SSH key resolution returns the library's PublicKey interface (no concrete type to return)
+        - charm.land/huh/v2.Theme            # uiform.Theme returns huh's Theme interface (ThemeFunc is the only constructor)
+
+    exhaustive:
+      default-signifies-exhaustive: true  # default: case counts as exhaustive
+
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: "io/ioutil"
+              desc: "Deprecated: use io and os packages instead"
+            - pkg: "github.com/pkg/errors"
+              desc: "Use fmt.Errorf with %w or standard errors package instead"
+
+    # ===== New Linter Settings (Stack-Specific) =====
+
+    spancheck:
+      checks:
+        - end                    # Ensure span.End() is called
+        - record-error           # Ensure errors are recorded on spans
+        - set-status             # Ensure span status is set on error
+
+    loggercheck:
+      zap: true                  # Enable zap-specific checks
+      kitlog: false
+      klog: false
+      logr: false
+      slog: false
+      require-string-key: true   # Keys must be strings
+      no-printf-like: true       # Disallow printf-style in structured logging
+
+    perfsprint:
+      int-conversion: true       # strconv.Itoa vs fmt.Sprintf("%d")
+      err-error: true            # err.Error() vs fmt.Sprintf("%s", err)
+      errorf: true               # fmt.Errorf vs errors.New + fmt.Sprintf
+      sprintf1: true             # fmt.Sprintf("%s", x) vs x (string)
+
+# Issues configuration
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

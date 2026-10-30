@@ -1,0 +1,16 @@
+name: dt:principle
+displayName: Principle
+description: A durable rule or value that guides recurring decisions within a domain.
+propertySchema:
+  type: object
+  properties:
+    domain:
+      type: string
+      description: Scope of applicability, e.g. architecture, hiring, product, operations.
+    priority:
+      type: integer
+      minimum: 1
+      description: Relative importance when principles conflict (lower number = higher priority).
+    origin:
+      type: string
+      description: Brief provenance of the principle, e.g. the team or context that codified it.

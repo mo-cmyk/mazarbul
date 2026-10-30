@@ -1,0 +1,14 @@
+name: notes:Topic
+displayName: Topic
+description: A subject area that notes are about — a node in a topic hierarchy.
+propertySchema:
+  type: object
+  properties:
+    summary:
+      type: string
+      description: One- or two-sentence description of what this topic covers.
+    aliases:
+      type: array
+      items:
+        type: string
+      description: Alternative names the topic is referred to by.

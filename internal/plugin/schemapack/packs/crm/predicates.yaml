@@ -1,0 +1,26 @@
+predicates:
+  - predicate: works_at
+    kind: functional
+    description: Subject contact works at the object account. Functional — a contact's current employer is a single account.
+    subjectKinds:
+      - crm:Contact
+    objectKinds:
+      - crm:Account
+    sameAs:
+      - https://schema.org/worksFor
+
+  - predicate: champion_of
+    kind: non-functional
+    description: Subject contact actively advocates for the object deal inside their account. A deal may have several champions.
+    subjectKinds:
+      - crm:Contact
+    objectKinds:
+      - crm:Deal
+
+  - predicate: involves_account
+    kind: functional
+    description: Subject deal is being closed with the object account. Functional — a deal belongs to exactly one account.
+    subjectKinds:
+      - crm:Deal
+    objectKinds:
+      - crm:Account

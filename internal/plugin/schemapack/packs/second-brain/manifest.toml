@@ -1,0 +1,5 @@
+name        = "second-brain"
+version     = "0.1.0"
+description = "A personal second-brain: people, projects, notes, and topics with an operating playbook for building a navigable life-graph."
+category    = "extension"
+kind        = "schema-pack"

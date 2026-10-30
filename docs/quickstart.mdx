@@ -1,0 +1,30 @@
+---
+title: "Quickstart"
+description: "Install Mazarbul, initialize a Book, expose it to your agents in under a minute."
+---
+
+Mazarbul is pre-alpha. The commands below are placeholders until the first release lands.
+
+## Install
+
+```bash
+go install github.com/mo-cmyk/mazarbul/cmd/maz@latest
+```
+
+## Initialize a Book
+
+```bash
+maz init
+```
+
+The wizard picks a data directory, asks for a chat provider, prints your 20-word Watchword. Store the Watchword somewhere safe; it is the only way to recover if you lose every paired device.
+
+## Expose to agents over MCP
+
+```bash
+maz mcp serve
+```
+
+Point any MCP-aware agent (Claude Code, Cursor, custom) at the served endpoint. The agent gains tools to `remember`, `recall`, `forget`, `relate`, and `review` facts in your Book.
+
+Next: read the [architecture explanation](./explanation/architecture) for the design overview.

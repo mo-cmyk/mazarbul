@@ -1,0 +1,131 @@
+# Lefthook git hooks configuration for Mazarbul
+# Philosophy: Fast pre-commit (auto-fix), thorough pre-push, comprehensive CI
+# https://github.com/evilmartians/lefthook
+
+# Pre-commit: FAST checks and auto-fixes (<10 seconds)
+# Goal: Prevent obviously broken code, maintain formatting
+pre-commit:
+  parallel: true
+  env:
+    GOTOOLCHAIN: auto
+
+  commands:
+    # Check Go formatting (fails if not formatted)
+    fmt:
+      glob: "*.go"
+      run: gofmt -l {staged_files} | grep . && exit 1 || exit 0
+      stage_fixed: true
+
+    # Run go vet for common mistakes.
+    # GOFLAGS mirrors .mise.toml: mattn/go-sqlite3 gates FTS5 behind this tag.
+    vet:
+      glob: "*.go"
+      env:
+        GOFLAGS: -tags=sqlite_fts5
+      run: go vet ./...
+
+    # Fast linting on new changes only
+    lint-fast:
+      glob: "*.go"
+      run: mise run lint-fast
+
+    # Run unit tests only (fast, no integration tests).
+    # GOFLAGS mirrors .mise.toml: mattn/go-sqlite3 gates FTS5 behind this tag.
+    #
+    # -timeout is PER TEST BINARY (not total). It must cover a cache-cold run
+    # of the heaviest package UNDER LOAD: a kernel-touching commit invalidates
+    # every downstream package's test cache, timed-out runs never write cache
+    # entries, and the full-tree run contends with itself, so a too-small
+    # budget wedges into a permanent false-negative (10s and 180s both did).
+    # The dispatcher -short suite alone measures ~234s under contention.
+    #
+    # `env -u GIT_*` strips git's repo-location variables before the tests run.
+    # `git commit` exports GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE (absolute
+    # paths to the live repo) into this pre-commit hook; without clearing them,
+    # the sync-transport and CLI tests that shell out to `git` inherit those
+    # paths and write into the developer's real index/objects instead of their
+    # temp repos — silently corrupting the working repository mid-commit.
+    # GIT_CEILING_DIRECTORIES cannot prevent this: the leaked values are
+    # explicit paths, not a parent-directory walk.
+    unit-tests:
+      glob: "*.go"
+      env:
+        GOFLAGS: -tags=sqlite_fts5
+      run: env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_NAMESPACE -u GIT_PREFIX go test -short -timeout 420s ./...
+
+    # Check test naming conventions (Google Go Style Guide)
+    test-naming:
+      glob: "*_test.go"
+      run: ./scripts/check-test-names.sh
+
+    # Re-sync go modules when go.mod / go.sum are touched directly.
+    # Catches manual edits and `go get` invocations that didn't tidy.
+    go-mod-sync:
+      glob: "{go.mod,go.sum}"
+      run: go mod tidy
+      stage_fixed: true
+
+# Pre-push: THOROUGH checks before pushing (<2 minutes)
+# Goal: Catch issues before CI, but skippable if urgent (--no-verify)
+pre-push:
+  parallel: false  # Sequential for clearer output
+  env:
+    GOTOOLCHAIN: auto
+
+  commands:
+    # Block direct pushes to main - enforce feature branch workflow
+    # Google-style trunk-based development: PRs required for main
+    protect-main:
+      run: |
+        BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        if [ "$BRANCH" = "main" ]; then
+          echo ""
+          echo "Direct push to main blocked."
+          echo "Trunk-based development requires feature branches + PRs."
+          echo ""
+          echo "Workflow:"
+          echo "  1. git checkout -b feat/your-feature"
+          echo "  2. git push -u origin feat/your-feature"
+          echo "  3. Open PR on GitHub, get review"
+          echo "  4. Squash-merge via GitHub UI"
+          echo ""
+          echo "Emergency bypass: git push --no-verify"
+          exit 1
+        fi
+
+    # Full CI gate before push.
+    # `env -u GIT_*` for the same reason as pre-commit unit-tests: `git push`
+    # exports GIT_DIR (an absolute path to the live repo) into this hook, and
+    # the sync/CLI tests that shell out to `git init <dir>` would otherwise see
+    # GIT_DIR override their temp dir and re-init the real repo (flipping
+    # core.bare, corrupting the working tree). protect-main above is left
+    # unwrapped so it can still read the current branch.
+    ci:
+      glob: "*.go"
+      run: env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_NAMESPACE -u GIT_PREFIX mise run ci
+
+# Commit message linting
+commit-msg:
+  commands:
+    # Enforce conventional commit format
+    conventional-commit:
+      run: |
+        MESSAGE=$(cat {1})
+        if ! echo "$MESSAGE" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf|build|ci|revert)(\(.+\))?: .+"; then
+          echo "Commit message must follow conventional commits format:"
+          echo "  feat(scope): add new feature"
+          echo "  fix(scope): resolve bug"
+          echo "  docs: update documentation"
+          echo "  perf: performance improvement"
+          echo ""
+          echo "See CONTRIBUTING.md for full format and examples."
+          exit 1
+        fi
+
+# Output configuration
+skip_output:
+  - meta      # Don't show hook metadata
+  - summary   # Don't show execution summary
+
+# Emergency bypass: LEFTHOOK=0 git commit -m "urgent fix"
+# Or: git commit --no-verify

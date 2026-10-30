@@ -1,0 +1,15 @@
+› (all)                                                                                             
+┌ filters ─────────────────────────────────────────────────────────────────────────────────────────┐
+│ Kind:   person  org  place                                                                       │
+│ Scope:  personal  project                                                                        │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+◇▸ Frodo Baggins                                                                                    
+    person · shire/hobbit · ⎇ main · Tolkien                                                        
+────────────────────────────────────────                                                            
+◇  Gandalf                                                                                          
+    person · wizard/grey · ⎇ main · Tolkien                                                         
+────────────────────────────────────────                                                            
+◇  Shire                                                                                            
+    place · eriador/northwest · ⎇ main · Tolkien                                                    
+                                                                                                    
+↑/↓ move · / search · n/p page · tab filters · enter open · q quit                                  

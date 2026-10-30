@@ -1,0 +1,33 @@
+name: extension:business_de:company
+displayName: Company (DE)
+description: A German registered company (GmbH, AG, UG, GbR, OHG, KG, or similar).
+extends: organization
+sameAs:
+  - https://schema.org/Corporation
+  - http://www.wikidata.org/entity/Q783794
+propertySchema:
+  type: object
+  properties:
+    hrb:
+      type: string
+      description: Handelsregisternummer (HRB/HRA) as listed in the Handelsregister, e.g. HRB 12345 B.
+    registrationCourt:
+      type: string
+      description: Registergericht (court of registration), e.g. Amtsgericht Berlin-Charlottenburg.
+    legalForm:
+      type: string
+      description: Legal form abbreviation, e.g. GmbH, AG, UG (haftungsbeschränkt), KG.
+    bundesanzeigerUrl:
+      type: string
+      format: uri
+      description: Direct URL to the Bundesanzeiger publications for this company.
+    registeredAddress:
+      type: string
+      description: Registered office address (Sitz der Gesellschaft).
+    foundingDate:
+      type: string
+      format: date
+      description: Date of incorporation (ISO 8601).
+    capital:
+      type: number
+      description: Registered share capital in EUR (Stammkapital / Grundkapital).

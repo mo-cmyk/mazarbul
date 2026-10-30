@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mazarbul.dev/schemas/cli/schema_entity_kinds_response.json",
+  "title": "SchemaEntityKindsResponse",
+  "description": "Response from maz schema entity-kinds: an array of entity kind taxonomy rows joined to live counts.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "description": "One entity kind taxonomy entry with its live entity count.",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "description": "The kind identifier, e.g. person."
+      },
+      "displayName": {
+        "type": "string",
+        "description": "Human-readable label for the kind."
+      },
+      "provenance": {
+        "type": "string",
+        "description": "Namespace lane: core (built-in), user (manually added), or extension:<name> (plugin-contributed)."
+      },
+      "extends": {
+        "type": "string",
+        "description": "Parent kind in the subtype hierarchy. Empty string for root kinds."
+      },
+      "sameAs": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "External ontology URIs this kind maps to, e.g. [\"https://schema.org/Person\"]."
+      },
+      "count": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Number of entities of this kind currently in the store."
+      },
+      "description": {
+        "type": "string",
+        "description": "One-sentence explanation of the kind."
+      },
+      "addedAt": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Time the kind was registered. RFC 3339 UTC."
+      },
+      "addedBy": {
+        "type": "string",
+        "description": "Who added the kind: seed, llm, user, or extension."
+      }
+    },
+    "required": ["kind", "displayName", "provenance", "extends", "sameAs", "count", "description", "addedAt", "addedBy"]
+  }
+}

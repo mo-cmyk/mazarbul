@@ -1,0 +1,17 @@
+name: brain:Note
+displayName: Note
+description: A freeform note or atomic insight — an evergreen idea, meeting takeaway, or reference.
+propertySchema:
+  type: object
+  properties:
+    content:
+      type: string
+      description: Full body of the note.
+    tags:
+      type: array
+      items:
+        type: string
+      description: Free-form labels for grouping, e.g. design, retrospective, book-notes.
+    source:
+      type: string
+      description: Where this note came from, e.g. book title, meeting name, URL.

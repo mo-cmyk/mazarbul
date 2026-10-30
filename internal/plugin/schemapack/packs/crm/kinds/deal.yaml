@@ -1,0 +1,16 @@
+name: crm:Deal
+displayName: Deal
+description: A sales opportunity with an account — a unit of pipeline that moves through stages toward won or lost.
+propertySchema:
+  type: object
+  properties:
+    stage:
+      type: string
+      description: Pipeline stage, e.g. discovery, evaluation, proposal, closed-won, closed-lost.
+    amount:
+      type: number
+      description: Deal value in the reporting currency.
+    closeDate:
+      type: string
+      format: date
+      description: Expected or actual close date (ISO 8601).

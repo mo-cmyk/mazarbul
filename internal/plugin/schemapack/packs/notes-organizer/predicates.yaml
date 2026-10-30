@@ -1,0 +1,22 @@
+predicates:
+  - predicate: about_topic
+    kind: non-functional
+    description: Subject entity (a note or document) is about the object topic. An entity may be about several topics.
+    objectKinds:
+      - notes:Topic
+
+  - predicate: cites_source
+    kind: non-functional
+    description: Subject entity draws on or references the object source.
+    objectKinds:
+      - notes:Source
+
+  - predicate: subtopic_of
+    kind: functional
+    description: Subject topic is a child of the object topic in the topic hierarchy. Functional — a topic has one parent.
+    subjectKinds:
+      - notes:Topic
+    objectKinds:
+      - notes:Topic
+    sameAs:
+      - http://www.w3.org/2004/02/skos/core#broader

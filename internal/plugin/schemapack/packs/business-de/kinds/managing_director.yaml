@@ -1,0 +1,24 @@
+name: extension:business_de:managing_director
+displayName: Managing Director (DE)
+description: A Geschäftsführer or Vorstand of a German company, as listed in the Handelsregister.
+extends: person
+sameAs:
+  - https://schema.org/Person
+  - http://www.wikidata.org/entity/Q2824523
+propertySchema:
+  type: object
+  properties:
+    dateOfBirth:
+      type: string
+      format: date
+      description: Date of birth as stated in the Handelsregister.
+    residenceCity:
+      type: string
+      description: City of residence as stated in the Handelsregister.
+    representationPower:
+      type: string
+      description: Representation authority (e.g. Einzelvertretungsbefugnis, Gesamtvertretung).
+    appointedDate:
+      type: string
+      format: date
+      description: Date of appointment to this role (ISO 8601).

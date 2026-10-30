@@ -1,0 +1,7 @@
+API onboarding call — transcript
+
+An engineer pasted live credentials into the call notes by mistake:
+  Authorization: Bearer grn_abcdefghijklmnopqrstuvwxyz0123456789
+  fallback granola key: grn_zyxwvutsrqponmlkjihgfedcba9876543210
+  base64 service token: aGVsbG8gd29ybGQgdGhpcyBpcyBhIHNlY3JldA==
+Please rotate all of these immediately.
