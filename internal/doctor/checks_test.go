@@ -1447,24 +1447,38 @@ func TestExtractorProviderCheck_NoChatModel(t *testing.T) {
 	}
 }
 
-// TestExtractorProviderCheck_ChatNone: chat disabled returns StatusWarn naming
-// the disabled state.
-func TestExtractorProviderCheck_ChatNone(t *testing.T) {
+// TestExtractorProviderCheck_ChatDisabled: an explicit chat=none is the
+// intended agent-side-reasoning setup and reports OK; an unset defaults.chat
+// is likely misconfiguration and still warns.
+func TestExtractorProviderCheck_ChatDisabled(t *testing.T) {
 	t.Parallel()
-	cfg := &config.UserConfig{
-		Defaults:  config.DefaultsTable{Chat: "none"},
-		Providers: map[string]config.ProviderTable{},
+	cases := []struct {
+		name       string
+		chat       string
+		wantStatus Status
+		wantDetail string
+	}{
+		{name: "explicit none is intended", chat: "none", wantStatus: StatusOK, wantDetail: "your agent does the reasoning"},
+		{name: "unset warns", chat: "", wantStatus: StatusWarn, wantDetail: "extractor disabled"},
 	}
-	c := newExtractorProviderCheck(cfg)
-	st, detail, err := runCheck(t, c)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if st != StatusWarn {
-		t.Errorf("status = %v, want StatusWarn (detail=%q)", st, detail)
-	}
-	if !strings.Contains(detail, "extractor disabled") {
-		t.Errorf("detail %q missing 'extractor disabled'", detail)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := &config.UserConfig{
+				Defaults:  config.DefaultsTable{Chat: tc.chat},
+				Providers: map[string]config.ProviderTable{},
+			}
+			st, detail, err := runCheck(t, newExtractorProviderCheck(cfg))
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			if st != tc.wantStatus {
+				t.Errorf("status = %v, want %v (detail=%q)", st, tc.wantStatus, detail)
+			}
+			if !strings.Contains(detail, tc.wantDetail) {
+				t.Errorf("detail %q missing %q", detail, tc.wantDetail)
+			}
+		})
 	}
 }
 

@@ -64,6 +64,11 @@ const providerNameAnthropic = "anthropic"
 // otherwise FAIL on a machine that has no daemon installed.
 const embedProviderNone = "none"
 
+// chatProviderNone is the explicit "no server-side chat model" sentinel in
+// defaults.chat, the recommended setup where the calling agent reasons. The
+// doctor reports it as OK; only an unset defaults.chat warns.
+const chatProviderNone = "none"
+
 // defaultAnthropicChatModel is the fallback model used by the
 // chat-provider ping when [providers.anthropic].model is empty. Matches
 // the recommended default in the init wizard so doctor and init agree.
@@ -165,8 +170,13 @@ func newExtractorProviderCheck(cfg *config.UserConfig) CheckFunc {
 			}
 
 			chat := cfg.Defaults.Chat
-			if chat == "" || chat == "none" {
-				return StatusWarn, "chat=none; extractor disabled", nil
+			switch chat {
+			case chatProviderNone:
+				// Intentional: the recommended setup. The calling agent does
+				// the reasoning and writes structure through the MCP tools.
+				return StatusOK, "chat=none (intended): your agent does the reasoning; server-side extraction and `maz ask` are off", nil
+			case "":
+				return StatusWarn, "defaults.chat unset; extractor disabled. Set it to none (your agent reasons), anthropic, or ollama", nil
 			}
 
 			table := cfg.Providers[chat]

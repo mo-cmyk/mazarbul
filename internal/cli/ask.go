@@ -16,13 +16,22 @@ import (
 	"github.com/mo-cmyk/mazarbul/internal/daemon"
 	"github.com/mo-cmyk/mazarbul/internal/kernel/composer"
 	"github.com/mo-cmyk/mazarbul/internal/logging"
+	"github.com/mo-cmyk/mazarbul/internal/mcp"
 )
 
-// errChatDisabledMsg is the message emitted when the ask tool is not
-// found in the wired tool slice, indicating the chat provider is
-// disabled. The wording matches the daemon log line so operators see a
-// consistent message regardless of which surface they use.
-const errChatDisabledMsg = `chat provider disabled (defaults.chat empty or none); set [defaults] chat = "ollama" in config.toml`
+// errChatNotConfiguredMsg is emitted when defaults.chat is "none" (the init
+// default) or unset. Plain, not themed: it is an error line. It points at the
+// recommended path first (the calling agent answers from recall) and names the
+// opt-in for a server-side model second.
+const errChatNotConfiguredMsg = `ask: no server-side chat model is configured (defaults.chat is "none" or unset).
+Mazarbul is the memory; your agent is the brain. Ask your agent (Claude Code, Cursor, ...) instead: it reads this memory through the recall and getContext MCP tools.
+To answer from a plain terminal, configure a chat provider: maz init --provider anthropic|ollama`
+
+// errChatUnavailableMsg is emitted when a chat provider is configured but the
+// ask tool was not wired (for example a stopped Ollama at wiring time, which
+// degrades the daemon to extraction-disabled mode).
+const errChatUnavailableMsg = `ask: the configured chat provider is unavailable, so the ask tool is not wired; run "maz doctor".
+Your agent can still answer from this memory through the recall and getContext MCP tools.`
 
 // askFlags holds the parsed flag values for "maz ask".
 type askFlags struct {
@@ -43,8 +52,12 @@ graph) against the event log and composing a grounded response via the
 configured chat provider.
 
 The answer includes inline [N]-style citation markers and a citations
-block listing the source episodes. When the chat provider is not
-configured, the command exits with a clear error.
+block listing the source episodes.
+
+ask needs a server-side chat model, which is off by default (defaults.chat =
+"none"): the recommended setup lets your agent do the reasoning, answering
+from the recall and getContext MCP tools. Without a chat model the command
+exits 1 and says so; enable one with maz init --provider anthropic|ollama.
 
 Exit codes:
   0   answer produced
@@ -91,6 +104,9 @@ func runAsk(cmd *cobra.Command, question string, flags *askFlags) error {
 	if err := validateAskFlags(cmd, flags); err != nil {
 		return err
 	}
+	if !chatConfigured(dataDir) {
+		return askChatDisabled(cmd, errChatNotConfiguredMsg)
+	}
 
 	// Build the JSON input for the ask tool.
 	in := map[string]interface{}{
@@ -132,10 +148,7 @@ func runAsk(cmd *cobra.Command, question string, flags *askFlags) error {
 	}
 
 	if rawAnswer == nil {
-		if _, werr := fmt.Fprintln(cmd.ErrOrStderr(), errChatDisabledMsg); werr != nil {
-			return werr
-		}
-		return silentError{code: 1, err: fmt.Errorf("%s", errChatDisabledMsg)}
+		return askChatDisabled(cmd, errChatUnavailableMsg)
 	}
 
 	w := cmd.OutOrStdout()
@@ -147,6 +160,41 @@ func runAsk(cmd *cobra.Command, question string, flags *askFlags) error {
 
 	// CLI mode: render plain text prose + citations.
 	return renderAskCLI(cmd, rawAnswer)
+}
+
+// chatConfigured reports whether the effective config (config.toml with the
+// machine-managed state.toml overlaid, as the daemon resolves it) names a
+// server-side chat provider. "none" and an unset defaults.chat both mean no;
+// the daemon routes both through its chat-disabled path. A missing or
+// unreadable config returns true so the existing wiring path reports the
+// real problem instead of this hint.
+func chatConfigured(dataDir string) bool {
+	user, err := config.LoadUserConfig(dataDir)
+	if err != nil {
+		return true
+	}
+	if state, serr := config.LoadUserState(dataDir); serr == nil {
+		user = config.Merge(user, state)
+	}
+	chat := user.Defaults.Chat
+	return chat != "" && chat != chatProviderNone
+}
+
+// askChatDisabled reports that `maz ask` cannot run without a chat model. It
+// writes msg to stderr and, in JSON/NDJSON mode, the shared {error,code}
+// envelope (E_VALIDATION: a configuration precondition, the same expected
+// failure class as bad input) to stdout, then exits 1 per the documented
+// ask exit codes.
+func askChatDisabled(cmd *cobra.Command, msg string) error {
+	if _, werr := fmt.Fprintln(cmd.ErrOrStderr(), msg); werr != nil {
+		return werr
+	}
+	wr := output.From(cmd)
+	if wr.Format() == output.FormatJSON || wr.Format() == output.FormatNDJSON {
+		//nolint:errcheck // best-effort JSON: the caller reads the exit code
+		_ = json.NewEncoder(cmd.OutOrStdout()).Encode(errorEnvelope{Error: msg, Code: string(mcp.CodeValidation)})
+	}
+	return silentError{code: 1, err: errors.New(msg)}
 }
 
 // validateAskFlags enforces --limit bounds and --at format, returning a
