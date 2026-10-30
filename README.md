@@ -7,7 +7,7 @@
 **Local-first, git-native memory and structured data for your AI agents. One Go binary. Talks [MCP](https://modelcontextprotocol.io). Your data never leaves your machine.**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Go 1.25](https://img.shields.io/badge/Go-1.25-00ADD8.svg?logo=go&logoColor=white)](go.mod)
+[![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8.svg?logo=go&logoColor=white)](go.mod)
 [![MCP](https://img.shields.io/badge/MCP-native-7C3AED.svg)](https://modelcontextprotocol.io)
 [![Local-first](https://img.shields.io/badge/local--first-no%20cloud%20required-1f9d55.svg)](#install)
 [![Works with Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-D97706.svg)](#use-with-claude-code-and-any-mcp-agent)

@@ -9,7 +9,8 @@ against the private repo is the active Phase-1 path (#243, see below).
 `maz` CGO-links the LadybugDB engine as a **dynamic** library
 (`liblbug.dylib` / `liblbug.so`). There is no static lib upstream, and the
 `go-ladybug` cgo directives bake an rpath pointing at the build machine's Go
-module cache (`-Wl,-rpath,${SRCDIR}/lib/dynamic/<platform>`). Two consequences:
+module cache (`-Wl,-rpath,${SRCDIR}/lib`, where `setup-graph-lib.sh` extracts the
+engine's `lbug.h` + lib). Two consequences:
 
 1. **The lib must travel with the binary.** Every release archive bundles the
    matching `liblbug.*` under `lib/`, and `scripts/release-rpath.sh` rewrites the

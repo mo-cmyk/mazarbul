@@ -151,10 +151,14 @@ func (c *Conn) executeLocked(cypher string, args map[string]any) (*result, error
 		return &result{qr: qr}, nil
 	}
 	stmt, err := c.conn.Prepare(cypher)
+	if stmt != nil {
+		// go-ladybug v0.17 dropped its GC finalizers and returns the
+		// statement even on failure, so release it on every path.
+		defer stmt.Close()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("ladybug: prepare: %w", err)
 	}
-	defer stmt.Close()
 	qr, err := c.conn.Execute(stmt, args)
 	if err != nil {
 		return nil, fmt.Errorf("ladybug: execute: %w", err)
