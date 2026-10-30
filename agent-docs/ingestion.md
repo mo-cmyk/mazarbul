@@ -28,6 +28,8 @@ To stay within budget, ingestion runs in two passes per source:
 
 The cheap pass is enough for full-text + vector search to work. The expensive pass enriches the graph and the entity registry.
 
+The expensive pass needs a server-side chat model, which is off by default (`defaults.chat = "none"`). In the default setup the calling agent is the extractor: it reads the source over its own connectors and writes entities, relations, and facts through the MCP tools with `source` provenance. Server-side extraction matters only for agent-less ingestion (file watching, connector runs, background consolidation); enable it with `maz init --provider anthropic|ollama`.
+
 <!-- TODO(m1): expand: chunking strategy, dedup via content hash, parser plugin slot, parallelism caps. -->
 
 ## Budget gates

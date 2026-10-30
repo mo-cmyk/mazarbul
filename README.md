@@ -35,6 +35,10 @@ And it runs headless. One lean binary gives you a CLI and an MCP server, with no
 - **Structured and unstructured.** Free-text `remember`, plus typed entities, relations, and facts you define and query. A database, not a pile of notes.
 - **Reference your live tools, don't copy them.** Your agent is already connected over MCP to Notion, Linear, Drive, and more. Mazarbul indexes them with a pointer, a short summary, and a freshness anchor, never the body, so recall spans your own memory and your live sources at once with nothing duplicated.
 
+## Your agent is the brain, Mazarbul is the memory
+
+The agent that calls Mazarbul over MCP (Claude Code, Cursor, your own) is already a strong model, so let it do the reasoning. It decides what is worth remembering, writes entities, relations, and facts with the structured tools (`createEntity`, `relate`, `fact`), resolves duplicates, and answers your questions from what `recall` and `getContext` return. Mazarbul stores, indexes, recalls, and proves where every record came from. That is why `maz init` configures no server-side chat model by default: you need only a small local embedding model for semantic recall, not a second LLM. A server-side model (Anthropic or a local Ollama model) is an optional extra that helps only when no agent is in the loop: passive file watching, connector ingestion, `maz ask` from a plain terminal, and background consolidation.
+
 ## Install
 
 ```bash
@@ -47,7 +51,7 @@ Or with Homebrew (macOS and Linux):
 brew install mo-cmyk/mazarbul/maz
 ```
 
-The installer verifies the download checksum, places `maz` plus its bundled engine library and man pages, and sets up a local model provider (it installs [Ollama](https://ollama.com) and pulls the embedding and chat models `maz` needs, unless you opt out with `--no-ollama`). Then run `maz init`. For a remote chat provider instead of local models, run `maz init --provider anthropic --api-key ...`.
+The installer verifies the download checksum, places `maz` plus its bundled engine library and man pages, and sets up a local model provider (it installs [Ollama](https://ollama.com) and pulls the embedding model semantic recall needs, unless you opt out with `--no-ollama`). It pulls no chat model: your agent does the reasoning. Then run `maz init`. If you want Mazarbul to reason on its own as well (agent-less ingestion, `maz ask`), add `--with-chat-model` to the installer for a local model, or run `maz init --provider anthropic --api-key ...` for a remote one.
 
 <details>
 <summary><b>Build from source</b></summary>
@@ -69,15 +73,17 @@ mise run build        # builds ./bin/maz (with sqlite_fts5)
 ## Quickstart: zero to agent memory
 
 ```bash
-# 1. Initialize your Book: pick a data dir and model provider. Turn on
-#    encryption and init shows a recovery Watchword to save (your only key).
+# 1. Initialize your Book: pick a data dir; keep the default "no server-side
+#    chat model" (your agent reasons) or opt into one. Turn on encryption and
+#    init shows a recovery Watchword to save (your only key).
 maz init
 
 # 2. Wire it into Claude Code over MCP. --capture records each session passively;
 #    --warm-start injects a context brief when a new session begins.
 maz connect claude-code --capture --warm-start
 
-# 3. Remember something. maz extracts the entities and relations for you.
+# 3. Remember something. Over MCP your agent also writes the entities and
+#    relations it sees; with a server-side chat model, maz extracts them too.
 maz remember "Frodo Baggins works at Bag End in the Shire as a ring-bearer."
 
 # 4. Recall it. Hybrid search (vector + full-text + graph + name-embedding), scored.

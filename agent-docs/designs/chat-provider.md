@@ -3,6 +3,38 @@
 **Status**: Implemented (Anthropic #49, Ollama #86)
 **Last updated**: 2026-05-24
 
+## Default: no chat provider (agent-side reasoning)
+
+Revised 2026-10-30. `maz init` defaults to `--provider none` and writes
+`[defaults] chat = "none"` with no chat model anywhere (no
+`[providers.anthropic]` table, no `[providers.ollama].chat_model`). The agent
+that calls Mazarbul over MCP is already a strong model, so it does the
+reasoning: it decides what to remember, writes entities, relations, and facts
+with `createEntity` / `relate` / `fact` / `addIdentifier`, resolves duplicates,
+and answers from `recall` / `getContext`. Mazarbul stores, indexes, recalls,
+and keeps provenance. Embeddings stay on by default for semantic recall.
+
+A server-side chat model is opt-in (`maz init --provider anthropic|ollama`,
+`scripts/install.sh --with-chat-model`) and only helps when no agent is in the
+loop: passive file watching, connector ingestion, `maz ask` from a terminal,
+and background consolidation.
+
+How "chat disabled" is detected, in one place per surface:
+
+- Daemon: `buildChatProvider` returns `(nil, nil)` for `defaults.chat` of
+  `"none"` (explicit, logged at Info) or `""` (likely misconfiguration, logged
+  at Debug). Extractor, resolver, and the `ask` tool are skipped; remember,
+  recall, and the structured write tools work.
+- `maz ask`: checks the effective config (config.toml plus state.toml) before
+  wiring; `"none"` or unset exits 1 with guidance to ask the agent instead.
+- `maz doctor`: `extractor.provider` reports `"none"` as OK (intended) and an
+  unset `defaults.chat` as WARN.
+- Init: environment detection no longer flips the default. An Anthropic key in
+  env or a running Ollama is not a reason to run a second model next to the
+  agent. A bare `--api-key` without `--provider` still selects Anthropic.
+- MCP: the server instructions and the `remember` / `relate` descriptions tell
+  the agent it is the extractor (static wording, true in both modes).
+
 ## Context
 
 M1's walking skeleton needs one chat provider live end-to-end: `maz init`,
