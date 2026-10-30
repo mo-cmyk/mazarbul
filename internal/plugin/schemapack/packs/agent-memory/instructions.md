@@ -38,6 +38,23 @@ Do not remember:
 - Transient state, secrets, or one-off scratch values.
 - Anything already obvious from the current files or conversation.
 
+## You are the brain, Mazarbul is the memory
+
+Mazarbul stores, indexes, recalls, and keeps provenance. The reasoning is yours.
+Usually no server-side model runs, so `remember` makes the text recallable but
+does not extract entities or relations from it. When you can see structure,
+write it yourself:
+
+- `entities` to find an existing anchor; `createEntity` only when none matches.
+- `relate` (or `relateBatch`) for relationships: "Ana owns billing".
+- `fact` for attributes and state: a project's status, a person's role.
+- `addIdentifier` for aliases, emails, and external IDs.
+
+Pass `source` on `remember`, `relate`, and `fact` (the file, URL, meeting, or
+conversation it came from) so every record can be traced. Answer questions
+from what `recall` and `getContext` return; do not expect Mazarbul to compose
+the answer for you.
+
 ## Keep it honest
 
 Reuse existing entities instead of minting near-duplicates — search by name

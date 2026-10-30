@@ -109,7 +109,7 @@ func (*Relate) Name() string { return "relate" }
 
 // Description implements mcp.Tool.
 func (*Relate) Description() string {
-	return "Assert a structured (subject, predicate, object) relation directly, bypassing LLM extraction. The write-side counterpart to the navigation verbs: when you already hold a fact as a triple, relate records it in one call. Returns the new relation's resource name."
+	return "Assert a structured (subject, predicate, object) relation directly. You are the extractor: when you see a relationship, record it here rather than relying on server-side extraction (off unless a chat model is configured). Pass source for provenance. Returns the new relation's resource name."
 }
 
 // InputSchema implements mcp.Tool.

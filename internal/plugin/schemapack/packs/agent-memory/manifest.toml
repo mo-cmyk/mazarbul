@@ -1,5 +1,5 @@
 name        = "agent-memory"
-version     = "0.2.0"
-description = "Teach your agent when to use Mazarbul's memory tools: warm up with getContext, recall before answering, remember after learning."
+version     = "0.3.0"
+description = "Teach your agent when to use Mazarbul's memory tools: warm up with getContext, recall before answering, remember after learning, and write entities and relations itself."
 category    = "extension"
 kind        = "schema-pack"
