@@ -11,6 +11,8 @@
 #   --channel NAME      release channel: stable (default) or nightly
 #   --no-modify-path    do not touch shell rc files (just print the PATH line)
 #   --no-ollama         do not install Ollama / pull models
+#   --with-chat-model   also pull a local chat model (MAZ_CHAT_MODEL) and set it
+#                       up as the server-side chat provider (--provider ollama)
 #   --init              run `maz init` non-interactively after install
 #   -h, --help          this help
 #
@@ -23,8 +25,12 @@
 #      so `man maz` works;
 #   3. add <prefix>/bin to PATH in your shell rc (unless --no-modify-path);
 #   4. ensure a local model provider: install Ollama if missing and pull the
-#      embedding + chat models maz needs (unless --no-ollama; skipped if already
-#      present). maz needs its OWN provider — without one, recall is disabled.
+#      embedding model semantic recall needs (unless --no-ollama; skipped if
+#      already present). No chat model by default: your agent (Claude Code,
+#      Cursor, ...) does the reasoning over MCP, Mazarbul is the memory. A
+#      server-side chat model only helps without an agent in the loop (file
+#      watching, connector ingestion, `maz ask` from a terminal); opt in with
+#      --with-chat-model or by setting MAZ_CHAT_MODEL.
 #
 # Private (pre-launch) installs: set MAZ_INSTALL_TOKEN (or GITHUB_TOKEN) to a
 # token with read access to the repo contents (a fine-grained PAT with
@@ -37,8 +43,9 @@
 #   MAZ_INSTALL_TOKEN / GITHUB_TOKEN (private-repo auth; MAZ_INSTALL_TOKEN wins),
 #   MAZ_API_BASE (default https://api.github.com),
 #   MAZ_EMBED_MODEL (default snowflake-arctic-embed2),
-#   MAZ_CHAT_MODEL  (default qwen2.5:7b),
-#   MAZ_NO_MODIFY_PATH=1, MAZ_NO_OLLAMA=1
+#   MAZ_CHAT_MODEL  (opt-in chat model; setting it implies --with-chat-model;
+#                    default qwen2.5:7b when --with-chat-model is given),
+#   MAZ_WITH_CHAT_MODEL=1, MAZ_NO_MODIFY_PATH=1, MAZ_NO_OLLAMA=1
 
 set -eu
 
@@ -54,9 +61,14 @@ EMBED_MODEL="${MAZ_EMBED_MODEL:-snowflake-arctic-embed2}"
 CHAT_MODEL="${MAZ_CHAT_MODEL:-qwen2.5:7b}"
 MODIFY_PATH=yes
 WITH_OLLAMA=yes
+# The chat model is opt-in: the calling agent does the reasoning. An explicitly
+# set MAZ_CHAT_MODEL counts as opting in.
+WITH_CHAT_MODEL=no
 RUN_INIT=no
 [ -n "${MAZ_NO_MODIFY_PATH:-}" ] && MODIFY_PATH=no
 [ -n "${MAZ_NO_OLLAMA:-}" ] && WITH_OLLAMA=no
+[ -n "${MAZ_WITH_CHAT_MODEL:-}" ] && WITH_CHAT_MODEL=yes
+[ -n "${MAZ_CHAT_MODEL:-}" ] && WITH_CHAT_MODEL=yes
 
 say() { echo "==> $*"; }
 warn() { echo "install.sh: $*" >&2; }
@@ -129,6 +141,7 @@ while [ $# -gt 0 ]; do
 		--channel) CHANNEL="${2:?--channel needs a value}"; shift 2 ;;
 		--no-modify-path) MODIFY_PATH=no; shift ;;
 		--no-ollama) WITH_OLLAMA=no; shift ;;
+		--with-chat-model) WITH_CHAT_MODEL=yes; shift ;;
 		--init) RUN_INIT=yes; shift ;;
 		# Print the leading comment block (line 2 to the first non-comment line)
 		# so the help text can't drift out of sync with a fixed line range.
@@ -296,7 +309,9 @@ configure_path
 # --- provider (Ollama) -----------------------------------------------------
 ensure_models() {
 	have ollama || return 0
-	for m in "$EMBED_MODEL" "$CHAT_MODEL"; do
+	models="$EMBED_MODEL"
+	[ "$WITH_CHAT_MODEL" = yes ] && models="$models $CHAT_MODEL"
+	for m in $models; do
 		# Literal match, not regex: model names carry metacharacters (the '.'
 		# in qwen2.5:7b would match any char). ollama stores an untagged name
 		# as "<name>:latest", so accept an exact name or a "<name>:" tag prefix.
@@ -311,7 +326,7 @@ ensure_models() {
 
 ensure_ollama() {
 	if [ "$WITH_OLLAMA" = no ]; then
-		say "skipping Ollama (--no-ollama). maz needs a provider: install Ollama, or run 'maz init --provider anthropic --api-key ...'"
+		say "skipping Ollama (--no-ollama). Semantic recall needs an embedding model: install Ollama later, then run 'maz init --embed ollama'"
 		return 0
 	fi
 	if have ollama; then
@@ -342,21 +357,26 @@ ensure_ollama() {
 ensure_ollama
 
 # --- optional: finish setup ------------------------------------------------
+# Default: no server-side chat model (--provider none); the agent reasons.
+# --with-chat-model (or MAZ_CHAT_MODEL) wires the pulled local chat model.
+if [ "$WITH_OLLAMA" = no ]; then
+	init_args="--yes --provider none --embed none"
+elif [ "$WITH_CHAT_MODEL" = yes ]; then
+	init_args="--yes --provider ollama --chat-model $CHAT_MODEL --embed ollama --embed-model $EMBED_MODEL"
+else
+	init_args="--yes --provider none --embed ollama --embed-model $EMBED_MODEL"
+fi
 if [ "$RUN_INIT" = yes ]; then
-	say "running maz init"
-	if [ "$WITH_OLLAMA" = no ]; then
-		"$PREFIX/bin/maz" init --yes || warn "maz init did not complete"
-	else
-		"$PREFIX/bin/maz" init --yes --provider ollama --chat-model "$CHAT_MODEL" \
-			--embed ollama --embed-model "$EMBED_MODEL" || warn "maz init did not complete"
-	fi
+	say "running maz init $init_args"
+	# Word splitting of $init_args is intended: model names carry no spaces.
+	# shellcheck disable=SC2086
+	"$PREFIX/bin/maz" init $init_args || warn "maz init did not complete"
 else
 	echo ""
 	say "Next: finish setup with"
-	if [ "$WITH_OLLAMA" = no ]; then
-		echo "    maz init"
-	else
-		echo "    maz init --yes --provider ollama --chat-model $CHAT_MODEL --embed ollama"
-	fi
+	echo "    maz init $init_args"
 	echo "    (or re-run this installer with --init)"
+fi
+if [ "$WITH_CHAT_MODEL" = no ]; then
+	say "no server-side chat model: your agent does the reasoning over MCP (add one later with --with-chat-model or 'maz init --provider anthropic|ollama')"
 fi
