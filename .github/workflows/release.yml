@@ -41,7 +41,7 @@ jobs:
           - { goos: linux, goarch: arm64, runner: ubuntu-24.04-arm }
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0 # tags, for `git describe` snapshot versioning
 
@@ -152,7 +152,7 @@ jobs:
             echo "relocated binary could not open the graph store" >&2; exit 1; }
 
       - name: Set up Node (mcpb CLI)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -191,7 +191,7 @@ jobs:
           echo "archive=${name}.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: Upload archive artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: archive-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
@@ -208,7 +208,7 @@ jobs:
       contents: write # gh release upload (only exercised when publish=true)
     steps:
       - name: Download archives + MCP bundles
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: archive-*
           merge-multiple: true
@@ -222,7 +222,7 @@ jobs:
           echo "== checksums.txt ==" && cat checksums.txt
 
       - name: Upload combined dist (snapshot inspection)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-dist
           path: dist/*
