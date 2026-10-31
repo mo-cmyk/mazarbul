@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/mo-cmyk/mazarbul/compare/v0.2.1...v0.2.2) (2026-10-31)
+
+
+### Bug Fixes
+
+* **daemon:** survive binary upgrades and launchctl races on macOS ([#14](https://github.com/mo-cmyk/mazarbul/issues/14)) ([e2bde5d](https://github.com/mo-cmyk/mazarbul/commit/e2bde5dc599e258277013b33df0e89493c46fcbc))
+
 ## [0.2.1](https://github.com/mo-cmyk/mazarbul/compare/v0.2.0...v0.2.1) (2026-10-31)
 
 
