@@ -177,3 +177,35 @@ func asSilentError(err error, target *silentError) bool {
 	}
 	return ok
 }
+
+// TestOpenPresetReadDB_DaemonHeldTakesReadOnlyPath: `maz preset list` and
+// `maz preset show` read the presets table through openPresetReadDB. With a
+// daemon holding the graph-DB lock they must take the read-only SQLite path
+// instead of the in-process wiring, which used to fail with "ladybug ... status 1".
+func TestOpenPresetReadDB_DaemonHeldTakesReadOnlyPath(t *testing.T) {
+	// No t.Parallel: stubs the package-level preflightDaemon var.
+	dir := t.TempDir()
+	provisionIndexDB(t, dir)
+
+	prev := preflightDaemon
+	preflightDaemon = func(string, string) error {
+		return &daemonLockHeldError{PID: 4242, StopHint: "maz daemon stop"}
+	}
+	t.Cleanup(func() { preflightDaemon = prev })
+
+	cmd := newReadDBTestCmd()
+	if err := cmd.PersistentFlags().Set("data-dir", dir); err != nil {
+		t.Fatalf("set data-dir: %v", err)
+	}
+	db, closeDB, err := openPresetReadDB(context.Background(), cmd, zap.NewNop())
+	if err != nil {
+		t.Fatalf("openPresetReadDB (daemon held): %v", err)
+	}
+	t.Cleanup(closeDB)
+
+	var n int
+	if qerr := db.QueryRowContext(context.Background(),
+		`SELECT COUNT(1) FROM presets`).Scan(&n); qerr != nil {
+		t.Fatalf("read-only pool query on presets failed: %v", qerr)
+	}
+}

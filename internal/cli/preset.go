@@ -971,27 +971,16 @@ func runPresetShow(cmd *cobra.Command, name string) error {
 // matching the read pathway of `maz schema kinds list`. It refuses if a daemon
 // holds the store lock (stop the daemon and retry).
 func openPresetReadDB(ctx context.Context, cmd *cobra.Command, logger *zap.Logger) (*sql.DB, func(), error) {
-	dataDir := presetDataDir(cmd)
-	wired, err := daemon.OpenWiring(ctx, daemon.WiringConfig{DataDir: dataDir, Logger: logger})
+	// The presets table lives in SQLite, so reuse the schema read path: a
+	// lock-tolerant read-only pool while a daemon holds the graph-DB lock,
+	// the in-process wiring otherwise.
+	db, closeFn, err := openSchemaReadDB(ctx, cmd, presetDataDir(cmd), logger)
 	if err != nil {
 		//nolint:errcheck // best-effort stderr
-		fmt.Fprintf(cmd.ErrOrStderr(), "preset: open wiring: %v\n", err)
+		fmt.Fprintf(cmd.ErrOrStderr(), "preset: %v\n", err)
 		return nil, nil, silentError{code: 2, err: err}
 	}
-	db, derr := wired.Orchestrator.Storage.OpenSQLite(ctx)
-	if derr != nil {
-		if cerr := wired.Close(ctx); cerr != nil {
-			logger.Warn("preset: close wiring after open-sqlite failure", zap.Error(cerr))
-		}
-		//nolint:errcheck // best-effort stderr
-		fmt.Fprintf(cmd.ErrOrStderr(), "preset: open sqlite: %v\n", derr)
-		return nil, nil, silentError{code: 2, err: derr}
-	}
-	return db, func() {
-		if cerr := wired.Close(ctx); cerr != nil {
-			logger.Warn("preset: close wiring", zap.Error(cerr))
-		}
-	}, nil
+	return db, closeFn, nil
 }
 
 // presetDataDir resolves the data-dir flag, defaulting to the configured path.
