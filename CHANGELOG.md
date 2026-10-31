@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/mo-cmyk/mazarbul/compare/v0.2.0...v0.2.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **secret:** fall back to a file store when the Linux keychain is unreachable ([#11](https://github.com/mo-cmyk/mazarbul/issues/11)) ([6e382a1](https://github.com/mo-cmyk/mazarbul/commit/6e382a1e2850d9451be501897f270308b75a9fb4))
+
 ## [0.2.0](https://github.com/mo-cmyk/mazarbul/compare/v0.1.0...v0.2.0) (2026-10-31)
 
 
