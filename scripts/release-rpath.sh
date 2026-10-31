@@ -4,7 +4,7 @@
 # directives bake in at link time.
 #
 # Why this exists: `maz` dynamically links liblbug (there is no static lib
-# upstream). The binding hardcodes `-Wl,-rpath,${SRCDIR}/lib/dynamic/<plat>`,
+# upstream). The binding hardcodes `-Wl,-rpath,${SRCDIR}/lib`,
 # so a freshly built binary only resolves liblbug from the *build machine's*
 # module cache. Shipped in a tarball that rpath is meaningless. This script
 # rewrites the binary so it looks for the lib next to itself, supporting two

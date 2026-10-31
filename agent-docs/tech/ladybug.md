@@ -14,7 +14,7 @@ LadybugDB is the maintained continuation of Kùzu after Apple acquired Kùzu in 
 
 ## Go bindings
 
-`github.com/LadybugDB/go-ladybug` is the CGO-based Go binding. Latest release (Dec 2025): v0.13.x. Package name in code is `lbug`. The kernel interface (`GraphConn`, `GraphResult` in `internal/kernel/storage.go`) is vendor-neutral so a future vendor switch is a contained refactor; `internal/kernel/storage/ladybug.go` (lands in #29) is where the bindings get wrapped.
+`github.com/LadybugDB/go-ladybug` is the CGO-based Go binding. Pinned: v0.17.0 (needs Go 1.26), paired with engine v0.17.1. Package name in code is `lbug`. The kernel interface (`GraphConn`, `GraphResult` in `internal/kernel/storage.go`) is vendor-neutral so a future vendor switch is a contained refactor; `internal/kernel/storage/ladybug.go` (lands in #29) is where the bindings get wrapped.
 
 Build requirements:
 
@@ -60,7 +60,11 @@ Bootstrapped in #29 (M1). Package: `github.com/mo-cmyk/mazarbul/internal/kernel/
 - `OpenLadybug(ctx, path) (*Conn, error)`: opens the embedded database, applies pending migrations, returns a `kernel.GraphConn`.
 - `Conn.Execute(ctx, cypher, args)`: runs a Cypher statement with optional named parameters; returns a streaming `kernel.GraphResult` iterator.
 
-The local dynamic library (`liblbug.dylib` / `liblbug.so`) is not bundled in the Go module proxy. Run `mise run setup-graph` once per worktree before `go build` or `go test`; the script downloads the platform-matching tarball from the upstream `LadybugDB/ladybug` release into the Go module cache. The engine version is pinned in `scripts/setup-graph-lib.sh` and bumped alongside the `github.com/LadybugDB/go-ladybug` module bump per AGENTS.md rule 10.
+The local dynamic library (`liblbug.dylib` / `liblbug.so`) and, since go-ladybug v0.17, the C header `lbug.h` are not in the Go module. Run `mise run setup-graph` once per worktree before `go build` or `go test`; the script downloads the platform-matching tarball from the upstream `LadybugDB/ladybug` release and extracts header + lib into `<go-ladybug module dir>/lib`, where the binding's cgo directives look. The engine version is pinned in `scripts/setup-graph-lib.sh` next to the go-ladybug version it pairs with; the script refuses to run when `go.mod` names a different go-ladybug, so bump both together per AGENTS.md rule 10.
+
+The pairing matters because a header/lib mismatch is silent memory corruption, not a link error. go-ladybug v0.13.1 vendored its own `lbug.h`, which disagreed with engine v0.16.1 on `lbug_system_config` (48 vs 56 bytes): `lbug_default_system_config()` returns the struct by value, so the engine wrote past the cgo caller's stack buffer. Debian arm64 aborted with `stack smashing detected` on the first open; macOS ran with a corrupted stack. Since v0.17 header and lib ship in the same tarball, which removes that drift.
+
+go-ladybug v0.17 also dropped its GC finalizers: every `Database`, `Connection`, `PreparedStatement`, `QueryResult` and `FlatTuple` must be closed explicitly, including a statement returned alongside a `Prepare` error.
 
 ## History note
 

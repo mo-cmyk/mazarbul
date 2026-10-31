@@ -6,6 +6,10 @@ Each entry: a one-paragraph note on a gotcha, a non-obvious decision, a workarou
 
 <!-- entries below this line -->
 
+## 2026-10-30, a cgo binding and its native engine are an ABI pair; a version string is not enough
+
+go-ladybug v0.13.1 vendored its own `lbug.h` while `scripts/setup-graph-lib.sh` fetched engine v0.16.1, which had grown `lbug_system_config` from 48 to 56 bytes. `lbug_default_system_config()` returns that struct by value, so the engine wrote 8 bytes past the cgo caller's stack slot: SIGSEGV / `stack smashing detected` on Debian arm64 at the first graph open, silent stack corruption on macOS and amd64 CI. Nothing failed at link time, the Go tests passed on the platforms CI ran, and the release smoke test only ran `maz --version`, which never loads the engine. Fix and guards: go-ladybug v0.17.0 ships no header, so `lbug.h` and the lib now come from the same engine tarball; the setup script pins the module version it pairs with and refuses a mismatch; the release smoke test inits a data dir and asserts `maz doctor` opened the graph store. The upgrade also forced `go 1.26` in `go.mod` (go-ladybug v0.17.0 requires it) and golangci-lint 2.9.0, the first release built with go1.26, which supersedes the "trail the toolchain by one minor" lesson below for this bump.
+
 ## 2026-06-24, a security gate inside an append-only projection must fail as a silent no-op, never an error
 
 `Compliance: true`

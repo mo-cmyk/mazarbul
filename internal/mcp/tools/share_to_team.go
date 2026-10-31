@@ -356,15 +356,16 @@ func (s *ShareToTeam) mintTeamEntity(ctx context.Context, uid string, ent naviga
 		return sharedItem{}, mcp.NewInternalError(fmt.Errorf("shareToTeam: marshal entity: %w", merr))
 	}
 
-	events := []kernel.Event{{
+	idEvents := s.buildIdentifierEvents(ctx, uid, teamUID, personalNav)
+	events := make([]kernel.Event, 0, 1+len(idEvents))
+	events = append(events, kernel.Event{
 		Kind:       kernel.EventKind(ontology.KindEntity),
 		Source:     "shared:" + uid,
 		Confidence: ent.Confidence,
 		Scope:      kernel.ScopeTeam,
 		Payload:    entPayload,
-	}}
-
-	events = append(events, s.buildIdentifierEvents(ctx, uid, teamUID, personalNav)...)
+	})
+	events = append(events, idEvents...)
 
 	if _, appErr := s.appender.Append(ctx, events); appErr != nil {
 		if errors.Is(appErr, kernel.ErrInvalidEvent) {

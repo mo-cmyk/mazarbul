@@ -108,11 +108,13 @@ jobs:
           # Bundle the engine lib. Resolve the EXACT go-ladybug version this
           # build links (via `go list -m`) instead of scanning the whole module
           # cache — otherwise a second cached version would make `find` pick a
-          # lib nondeterministically. setup-graph-lib populates one platform dir.
+          # lib nondeterministically. setup-graph-lib extracts the engine
+          # (lib + lbug.h) into <module dir>/lib, where go-ladybug's cgo
+          # directives look for it.
           moddir="$(go list -m -f '{{.Dir}}' github.com/LadybugDB/go-ladybug)"
           test -n "$moddir" || { echo "go-ladybug module dir not found" >&2; exit 1; }
-          libdir="$(find "$moddir/lib/dynamic" -mindepth 1 -maxdepth 1 -type d | head -1)"
-          test -n "$libdir" || { echo "engine lib dir not found" >&2; exit 1; }
+          libdir="$moddir/lib"
+          ls "$libdir"/liblbug.* >/dev/null 2>&1 || { echo "engine lib not found in $libdir" >&2; exit 1; }
           cp -P "$libdir"/liblbug.* stage/lib/
           # Rewrite rpath so the binary finds the bundled lib (../lib or ./lib).
           cp build/maz stage/maz
@@ -133,6 +135,21 @@ jobs:
           echo "relocated maz --version: $out"
           printf '%s\n' "$out" | grep -Fq -- "$VERSION" || {
             echo "version mismatch in relocated binary" >&2; exit 1; }
+          # --version never touches the engine, so it cannot catch a header /
+          # library ABI mismatch (go-ladybug v0.13.1 vendored a header that
+          # disagreed with engine v0.16.1 and smashed the stack on the first
+          # open). Initialise a throwaway data dir and open the graph store
+          # for real: init (no network, no keychain, no daemon), then doctor,
+          # whose ladybug.open check opens the DB and runs RETURN 1.
+          data="$(mktemp -d)"
+          export MAZ_DATA_DIR="$data" MAZ_NO_UPDATE_CHECK=1
+          /tmp/relocate/bin/maz init --yes --embed none --provider ollama \
+            --daemon off --no-identity --output json
+          doctor="$(/tmp/relocate/bin/maz doctor --output json || true)"
+          printf '%s\n' "$doctor"
+          printf '%s\n' "$doctor" | jq -e \
+            '[.. | objects | select(.name? == "ladybug.open")][0].status == "ok"' >/dev/null || {
+            echo "relocated binary could not open the graph store" >&2; exit 1; }
 
       - name: Pack archive
         id: pack
