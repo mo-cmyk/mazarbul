@@ -57,7 +57,7 @@ The four sections below distill the original design discussion into a single rea
 
 Decided: single Go binary, JSON Schema (not Pydantic), three plugin categories, CRDT sync on JSONL event log, Docling default parser, four-layer storage, Watchword recovery, no provider prefix in install commands, MCP as universal protocol, budget gates on enrichment.
 
-Resolved: default chat provider = Anthropic (with Ollama as local-first fallback); default embed model = `snowflake-arctic-embed2`; default chat model = `qwen2.5:7b`; Watchword wordlist = BIP-39 English; MCP server library = `mark3labs/mcp-go`; graph backend = LadybugDB embedded via CGO through `github.com/LadybugDB/go-ladybug`.
+Resolved: default chat provider = none (the calling agent does the reasoning; Anthropic and Ollama are opt-in, see `agent-docs/designs/chat-provider.md`); default embed model = `snowflake-arctic-embed2`; default chat model = `qwen2.5:7b`; Watchword wordlist = BIP-39 English; MCP server library = `mark3labs/mcp-go`; graph backend = LadybugDB embedded via CGO through `github.com/LadybugDB/go-ladybug`.
 
 ---
 
@@ -133,7 +133,7 @@ This is the canonical naming for everything Mazarbul exposes: MCP tool input/out
 
 These are decisions from the design conversation. Resolved items are noted inline; remaining open items need Moritz's input before the relevant work begins.
 
-- **Default chat provider.** **Resolved:** Anthropic for cloud, Ollama for local-first. Default Ollama chat model: `qwen2.5:7b`; default embed model: `snowflake-arctic-embed2`.
+- **Default chat provider.** **Resolved (revised 2026-10-30):** none. The agent calling Mazarbul over MCP is the brain; Mazarbul is the memory. Anthropic (cloud) and Ollama (local) are opt-in for agent-less work. Default Ollama chat model when opted in: `qwen2.5:7b`; default embed model: `snowflake-arctic-embed2`.
 - **MCP server library choice.** **Resolved:** `mark3labs/mcp-go`. In use since initial implementation.
 - **LadybugDB embedding mode.** **Resolved 2026-05-24: CGO** via the official `github.com/LadybugDB/go-ladybug` bindings. Single binary, no subprocess to manage; the CGO toolchain is already required for sqlite-vec, so the build cost is shared. See `agent-docs/tech/ladybug.md` for per-platform build requirements.
 - **Watchword wordlist source.** **Resolved:** BIP-39 English (2048 words, well-known, unambiguous 4-letter prefixes).

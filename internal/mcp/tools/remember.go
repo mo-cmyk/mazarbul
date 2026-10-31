@@ -104,7 +104,7 @@ func (*Remember) Name() string { return "remember" }
 // eventual retrievability via recall, not synchronous visibility in
 // every derived store.
 func (*Remember) Description() string {
-	return "Persist a fact to the user's long-term memory. CALL THIS whenever the user tells you something about themselves, their work, their preferences, decisions, plans, or corrects a prior fact — even if you think you'll remember it within the current conversation. Mazarbul is the durable store; your own context is not. Pass the original sentence verbatim; the server handles dedup, extraction, and supersede."
+	return "Persist a fact to the user's long-term memory. CALL THIS whenever the user tells you something about themselves, their work, their preferences, decisions, plans, or corrects a prior fact, even if you think you'll remember it within the current conversation. Mazarbul is the durable store; your own context is not. Pass the original sentence verbatim. remember stores and indexes the text for recall; entities and relations are extracted server-side only when a chat model is configured (usually not), so write the structure you see yourself with createEntity, relate, and fact."
 }
 
 // InputSchema implements mcp.Tool. Compiled once by the server registry

@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/mo-cmyk/mazarbul/internal/config"
 	"github.com/mo-cmyk/mazarbul/internal/kernel/composer"
 )
 
@@ -58,43 +59,94 @@ func TestAskHelp(t *testing.T) {
 	}
 }
 
-// TestAskChatDisabled: when no ask tool is registered (chat disabled),
-// stderr carries the canonical error message and exit code is 1.
+// TestAskChatDisabled: with no server-side chat model configured (the init
+// default "none", or an unset defaults.chat), `maz ask` exits 1 before any
+// wiring, prints the plain guidance pointing at the agent, and in JSON mode
+// also emits the {error,code} envelope.
 func TestAskChatDisabled(t *testing.T) {
-	var outBuf, errBuf bytes.Buffer
-	cmd := newAskCmd()
-	cmd.SetOut(&outBuf)
-	cmd.SetErr(&errBuf)
+	cases := []struct {
+		name     string
+		chat     string
+		json     bool
+		wantJSON bool
+	}{
+		{name: "none text", chat: "none"},
+		{name: "unset text", chat: ""},
+		{name: "none json", chat: "none", json: true, wantJSON: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfg := config.UserConfig{
+				SchemaVersion: config.CurrentUserConfigSchemaVersion,
+				Defaults:      config.DefaultsTable{Chat: tc.chat, Embed: "none"},
+			}
+			if err := config.WriteUserConfig(dir, cfg); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+			var outBuf, errBuf bytes.Buffer
+			root := makeAskCmd(&outBuf, &errBuf)
+			args := []string{"ask", "--data-dir", dir, "who am I?"}
+			if tc.json {
+				args = append(args, "--json")
+			}
+			root.SetArgs(args)
+			err := root.Execute()
 
-	// runAsk with empty wired.Tools (simulated by calling the not-found
-	// branch directly via renderAskCLI path: provide an empty tool list).
-	// We do this by constructing a minimal cobra tree and exercising the
-	// "chat disabled" path via the helper that checks the found flag.
-	err := askNotFoundError(cmd)
-
-	var se silentError
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !errors.As(err, &se) {
-		t.Fatalf("expected silentError, got %T: %v", err, err)
-	}
-	if se.code != 1 {
-		t.Errorf("exit code = %d, want 1", se.code)
-	}
-	if !strings.Contains(errBuf.String(), "chat provider disabled") {
-		t.Errorf("stderr missing chat-disabled message: %q", errBuf.String())
+			var se silentError
+			if !errors.As(err, &se) {
+				t.Fatalf("expected silentError, got %T: %v", err, err)
+			}
+			if se.code != 1 {
+				t.Errorf("exit code = %d, want 1", se.code)
+			}
+			for _, want := range []string{"no server-side chat model", "recall and getContext", "maz init --provider anthropic|ollama"} {
+				if !strings.Contains(errBuf.String(), want) {
+					t.Errorf("stderr missing %q:\n%s", want, errBuf.String())
+				}
+			}
+			if tc.wantJSON && !strings.Contains(outBuf.String(), `"code":"E_VALIDATION"`) {
+				t.Errorf("stdout missing JSON envelope:\n%s", outBuf.String())
+			}
+		})
 	}
 }
 
-// askNotFoundError exercises the "ask tool not found" branch directly,
-// writing to cmd.ErrOrStderr() and returning the appropriate silentError.
-// This avoids opening real daemon wiring in unit tests.
-func askNotFoundError(cmd *cobra.Command) error {
-	if _, werr := cmd.ErrOrStderr().Write([]byte(errChatDisabledMsg + "\n")); werr != nil {
-		return werr
+// TestChatConfigured pins the chat-disabled detection shared with the daemon:
+// "none" and unset are disabled, a named provider is enabled, and a missing
+// config defers to the wiring path.
+func TestChatConfigured(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		chat  string
+		write bool
+		want  bool
+	}{
+		{name: "none", chat: "none", write: true, want: false},
+		{name: "unset", chat: "", write: true, want: false},
+		{name: "anthropic", chat: "anthropic", write: true, want: true},
+		{name: "ollama", chat: "ollama", write: true, want: true},
+		{name: "no config defers to wiring", write: false, want: true},
 	}
-	return silentError{code: 1, err: fmt.Errorf("%s", errChatDisabledMsg)}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			if tc.write {
+				cfg := config.UserConfig{
+					SchemaVersion: config.CurrentUserConfigSchemaVersion,
+					Defaults:      config.DefaultsTable{Chat: tc.chat},
+				}
+				if err := config.WriteUserConfig(dir, cfg); err != nil {
+					t.Fatalf("write config: %v", err)
+				}
+			}
+			if got := chatConfigured(dir); got != tc.want {
+				t.Errorf("chatConfigured = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }
 
 // TestRenderAskCLI_ProseOnly: an answer with no citations renders only

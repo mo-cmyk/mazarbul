@@ -17,7 +17,7 @@ go install github.com/mo-cmyk/mazarbul/cmd/maz@latest
 maz init
 ```
 
-The wizard picks a data directory, asks for a chat provider, prints your 20-word Watchword. Store the Watchword somewhere safe; it is the only way to recover if you lose every paired device.
+The wizard picks a data directory and asks whether you want a server-side chat model. The recommended answer is none: your agent (Claude Code, Cursor, ...) does the reasoning over MCP and Mazarbul is the memory, so you only need the local embedding model for semantic recall. Pick Anthropic or Ollama (`maz init --provider anthropic|ollama`) only for agent-less ingestion or `maz ask` from a terminal. It then prints your 20-word Watchword. Store the Watchword somewhere safe; it is the only way to recover if you lose every paired device.
 
 ## Expose to agents over MCP
 
@@ -25,6 +25,6 @@ The wizard picks a data directory, asks for a chat provider, prints your 20-word
 maz mcp serve
 ```
 
-Point any MCP-aware agent (Claude Code, Cursor, custom) at the served endpoint. The agent gains tools to `remember`, `recall`, `forget`, `relate`, and `review` facts in your Book.
+Point any MCP-aware agent (Claude Code, Cursor, custom) at the served endpoint. The agent gains tools to `remember`, `recall`, `forget`, `relate`, and `review` facts in your Book. It is the reasoning layer: it writes the entities, relations, and facts it sees with the structured tools, and answers from what `recall` returns.
 
 Next: read the [architecture explanation](./explanation/architecture) for the design overview.

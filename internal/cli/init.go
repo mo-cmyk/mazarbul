@@ -51,7 +51,16 @@ func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a Mazarbul data directory",
-		Long: `Set up the local data directory and pick a default chat provider.
+		Long: `Set up the local data directory and the model providers.
+
+Your agent is the brain, Mazarbul is the memory. The agent that calls Mazarbul
+over MCP (Claude Code, Cursor, ...) already is a strong model, so by default no
+server-side chat model is configured (--provider none): the agent decides what
+to remember, writes entities, relations, and facts with the MCP tools, and
+answers from recalled context. Pick anthropic or ollama only when you want
+Mazarbul to reason without an agent in the loop (passive file watching,
+connector ingestion, ` + "`maz ask`" + ` from a plain terminal, background
+consolidation). Embeddings (--embed ollama) power semantic recall either way.
 
 Re-runnable; idempotent. In TTY mode (default) you get an interactive form.
 With --yes or --output=json the command accepts the same inputs as flags and
@@ -74,13 +83,16 @@ Examples:
   # Set up config but do not touch the daemon:
   maz init --yes --daemon=off
 
+  # Add a local server-side chat model for agent-less ingestion and maz ask:
+  maz init --yes --provider ollama
+
   # Machine-readable, explicitly start the daemon:
   maz init --output=json --daemon=auto`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runInit(cmd, flags)
 		},
 	}
-	cmd.Flags().StringVar(&flags.provider, "provider", "anthropic", "chat provider: anthropic | ollama")
+	cmd.Flags().StringVar(&flags.provider, "provider", chatProviderNone, "server-side chat provider: none (your agent does the reasoning) | anthropic | ollama")
 	cmd.Flags().StringVar(&flags.chatModel, "chat-model", "", "chat model identifier (defaults to provider's recommended model)")
 	cmd.Flags().StringVar(&flags.embedProvider, "embed", embedProviderOllama, "embedding provider: ollama | none (none disables recall)")
 	cmd.Flags().StringVar(&flags.embedModel, "embed-model", ollama.DefaultEmbedModel, "Ollama embedding model (ignored when --embed=none)")
@@ -102,6 +114,7 @@ func runInit(cmd *cobra.Command, flags *initFlags) error {
 	if yes {
 		detectYesDefaults(cmd.Flags(), flags)
 	}
+	impliedProviderFromAPIKey(cmd.Flags(), flags)
 	connectSpec, _ := cmd.Flags().GetString("connect")
 	daemonFlag, _ := cmd.Flags().GetString("daemon")
 	presetSpec, _ := cmd.Flags().GetString("preset")
@@ -344,7 +357,7 @@ func applyInitPresetStep(ctx context.Context, cmd *cobra.Command, w io.Writer, d
 // This function is pure (no I/O) and runs before validateInitFlags.
 func detectYesDefaults(fs *pflag.FlagSet, flags *initFlags) {
 	if !fs.Changed("provider") {
-		flags.provider = chatProviderAnthropic
+		flags.provider = chatProviderNone
 	}
 	// --chat-model: leave empty; defaultChatModel resolves it per provider.
 	if !fs.Changed("embed") {
@@ -355,18 +368,30 @@ func detectYesDefaults(fs *pflag.FlagSet, flags *initFlags) {
 	}
 }
 
+// impliedProviderFromAPIKey keeps `maz init --api-key <key>` meaningful now
+// that the chat default is none: an Anthropic key without an explicit
+// --provider selects the Anthropic chat provider. An explicit --provider
+// always wins (and persistAPIKeyIfProvided rejects a key for non-Anthropic).
+func impliedProviderFromAPIKey(fs *pflag.FlagSet, flags *initFlags) {
+	if flags.apiKey != "" && !fs.Changed("provider") {
+		flags.provider = chatProviderAnthropic
+	}
+}
+
 // validateInitFlags rejects flag combinations the non-interactive paths
 // cannot satisfy. The form validates interactively and does not need
 // this gate.
 func validateInitFlags(flags *initFlags) error {
 	switch flags.provider {
+	case chatProviderNone:
+		// No server-side chat model: the calling agent does the reasoning.
 	case chatProviderAnthropic:
 		// Anthropic uses a baked-in default model; --chat-model is optional.
 	case chatProviderOllama:
 		// Ollama defaults to ollama.DefaultChatModel via defaultChatModel when
 		// --chat-model is omitted, so no explicit pick is required here.
 	default:
-		return fmt.Errorf("unknown --provider %q (supported: anthropic, ollama)", flags.provider)
+		return fmt.Errorf("unknown --provider %q (supported: none, anthropic, ollama)", flags.provider)
 	}
 	switch flags.embedProvider {
 	case embedProviderOllama, embedProviderNone:
@@ -379,17 +404,22 @@ func validateInitFlags(flags *initFlags) error {
 // userConfigFromFlags builds a UserConfig from CLI flag values. Used by
 // both the CLI and JSON modes so the two stay in sync. The Ollama table
 // is omitted entirely when neither chat nor embed routes through it, so
-// an Anthropic+none install produces the minimum-viable config.
+// an Anthropic+none install produces the minimum-viable config. With
+// --provider none, defaults.chat is written as the explicit "none" sentinel
+// (the daemon's chat-disabled path) and no chat model is recorded anywhere:
+// no [providers.anthropic] table and no ollama chat_model. The anthropic and
+// ollama paths keep writing the [providers.anthropic] table as before.
 func userConfigFromFlags(f *initFlags) config.UserConfig {
 	chatModel := f.chatModel
 	if chatModel == "" {
 		chatModel = defaultChatModel(f.provider)
 	}
-	providers := map[string]config.ProviderTable{
-		"anthropic": {
-			Model:  defaultChatModel("anthropic"),
+	providers := map[string]config.ProviderTable{}
+	if f.provider != chatProviderNone {
+		providers["anthropic"] = config.ProviderTable{
+			Model:  defaultChatModel(chatProviderAnthropic),
 			Secret: config.SecretURIScheme + secret.NameAnthropicAPIKey,
-		},
+		}
 	}
 	if ollamaTableNeeded(f.provider, f.embedProvider) {
 		providers["ollama"] = config.ProviderTable{
@@ -429,9 +459,13 @@ func ollamaEmbedFor(embedProvider, embedModel string) string {
 
 // defaultChatModel returns the recommended chat model for a given provider, so
 // `maz init --provider <p>` works without an explicit --chat-model (symmetric
-// with --embed, which already defaults via ollama.DefaultEmbedModel).
+// with --embed, which already defaults via ollama.DefaultEmbedModel). Empty
+// for the none sentinel: no server-side chat model is configured.
 func defaultChatModel(provider string) string {
-	if provider == chatProviderAnthropic {
+	switch provider {
+	case chatProviderNone:
+		return ""
+	case chatProviderAnthropic:
 		return "claude-opus-4-7"
 	}
 	return ollama.DefaultChatModel
@@ -445,6 +479,15 @@ func ollamaChatFor(provider, chatModel string) string {
 		return chatModel
 	}
 	return ""
+}
+
+// chatSummary renders the chat-step summary line. The none sentinel reads
+// as the intended agent-side-reasoning setup rather than "none ()".
+func chatSummary(provider, model string) string {
+	if provider == chatProviderNone {
+		return "none (your agent does the reasoning; add one later with `maz init --provider anthropic|ollama`)"
+	}
+	return fmt.Sprintf("%s (%s)", provider, model)
 }
 
 // embeddingsSummary renders the embed-step summary line so the post-init
@@ -842,7 +885,7 @@ func writeInitSummary(w io.Writer, dataDir string, flags *initFlags, yes bool) e
 	if err := printStepSummary(w, "data directory", dataDir); err != nil {
 		return err
 	}
-	if err := printStepSummary(w, "chat", fmt.Sprintf("%s (%s)", flags.provider, chatModel)); err != nil {
+	if err := printStepSummary(w, "chat", chatSummary(flags.provider, chatModel)); err != nil {
 		return err
 	}
 	// The final "Ready." line is intentionally NOT printed here: the caller
@@ -971,43 +1014,6 @@ func probeOllamaModels(ctx context.Context) []string {
 	return names
 }
 
-// ollamaReachable returns true when localhost:11434 answers within 1s.
-func ollamaReachable(ctx context.Context) bool {
-	return len(probeOllamaModels(ctx)) > 0 || probeOllamaEndpoint(ctx)
-}
-
-// probeOllamaEndpoint does a bare GET to detect the server even when no
-// models are installed.
-func probeOllamaEndpoint(ctx context.Context) bool {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ollama.DefaultBaseURL, nil)
-	if err != nil {
-		return false
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return false
-	}
-	//nolint:errcheck // best-effort body close on probe response
-	_ = resp.Body.Close()
-	return resp.StatusCode < 500
-}
-
-// defaultProviderDetect picks a sensible initial provider value by probing
-// the environment. Anthropic is preferred when the API key env is set;
-// Ollama is tried next; Anthropic is the final fallback.
-func defaultProviderDetect(ctx context.Context) string {
-	if os.Getenv("ANTHROPIC_API_KEY") != "" ||
-		os.Getenv(secret.CanonicalEnvName(secret.NameAnthropicAPIKey)) != "" {
-		return chatProviderAnthropic
-	}
-	if ollamaReachable(ctx) {
-		return chatProviderOllama
-	}
-	return chatProviderAnthropic
-}
-
 // runInitForm runs the interactive huh form for `maz init`. It builds a
 // single uiform form (no tea.NewProgram). Groups are
 // conditionally shown via WithHideFunc based on pointer values.
@@ -1026,7 +1032,6 @@ func runInitForm(cmd *cobra.Command, initialDir, daemonFlag string, offerConnect
 	stdout := cmd.OutOrStdout()
 	// --- Pre-form probing (all best-effort, no blocking I/O after) ---
 	installedModels := probeOllamaModels(ctx)
-	defaultProvider := defaultProviderDetect(ctx)
 
 	haveKey := anthropicKeyAvailableFn()
 
@@ -1043,7 +1048,10 @@ func runInitForm(cmd *cobra.Command, initialDir, daemonFlag string, offerConnect
 	// Pointers that huh binds to. Must be allocated on the heap so the
 	// value survives across the form groups (Elm-style value copies).
 	dataDirVal := initialDir
-	chatProviderVal := defaultProvider
+	// The chat provider always defaults to none, whatever the environment
+	// offers: an Anthropic key in env or a running Ollama is not a reason to
+	// run a second model next to the calling agent, which already reasons.
+	chatProviderVal := chatProviderNone
 	apiKeyVal := ""
 	anthropicModelVal := defaultChatModel(chatProviderAnthropic)
 	ollamaModelTextVal := ""
@@ -1088,11 +1096,12 @@ func runInitForm(cmd *cobra.Command, initialDir, daemonFlag string, offerConnect
 	// --- Group 2: chat provider ---
 	grp2 := huh.NewGroup(
 		huh.NewSelect[string]().
-			Title("Chat provider").
-			Description("Change later by editing config.toml.").
+			Title("Server-side chat model").
+			Description("Your agent (Claude Code, Cursor, ...) is the brain; Mazarbul is the memory. A server-side model is optional, only for ingestion without an agent and `maz ask` from a terminal.").
 			Options(
-				huh.NewOption("Anthropic (recommended)", chatProviderAnthropic),
-				huh.NewOption("Ollama (local)", chatProviderOllama),
+				huh.NewOption("None, my agent does the reasoning (recommended)", chatProviderNone),
+				huh.NewOption("Anthropic (optional: agent-less ingestion, maz ask)", chatProviderAnthropic),
+				huh.NewOption("Ollama, local (optional: agent-less ingestion, maz ask)", chatProviderOllama),
 			).
 			Value(&chatProviderVal),
 	)
@@ -1254,7 +1263,7 @@ func runInitForm(cmd *cobra.Command, initialDir, daemonFlag string, offerConnect
 		groups = append(groups, huh.NewGroup(
 			huh.NewConfirm().
 				Title("Teach your agent when to use Mazarbul?").
-				Description("Installs the agent-memory preset: a short playbook steering the agent to warm up with getContext, recall before answering, and remember what it learns.").
+				Description("Installs the agent-memory preset: a short playbook steering the agent to warm up with getContext, recall before answering, remember what it learns, and write entities and relations itself.").
 				Value(&installPresetVal),
 		))
 	}
@@ -1343,7 +1352,7 @@ func runInitForm(cmd *cobra.Command, initialDir, daemonFlag string, offerConnect
 	if err := printStepSummary(stdout, "data directory", resolvedDir); err != nil {
 		return err
 	}
-	if err := printStepSummary(stdout, "chat", fmt.Sprintf("%s (%s)", resolvedProvider, resolvedChatModel)); err != nil {
+	if err := printStepSummary(stdout, "chat", chatSummary(resolvedProvider, resolvedChatModel)); err != nil {
 		return err
 	}
 	if err := printStepSummary(stdout, "embeddings", embeddingsSummary(resolvedEmbed, ollama.DefaultEmbedModel)); err != nil {

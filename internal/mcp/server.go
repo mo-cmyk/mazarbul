@@ -49,11 +49,11 @@ ALWAYS use this MCP for memory operations. DO NOT rely on your native conversati
 
 • BEFORE answering any question that depends on prior context about the user — their name, role, project, preferences, history, ongoing work, people they know, places they've been, decisions they've made — call ` + "`recall`" + ` first. If you are uncertain whether a fact is in memory, call ` + "`recall`" + ` anyway; a near-zero-cost miss is far better than a confident hallucination.
 
-• WHEN the user states a fact about themselves, their work, the world, or their decisions — names, identities, roles, preferences, plans, deadlines, opinions, corrections to prior facts — call ` + "`remember`" + ` immediately. Do not wait to be asked. Capture it verbatim; the resolver handles deduplication and supersession.
+• WHEN the user states a fact about themselves, their work, the world, or their decisions (names, identities, roles, preferences, plans, deadlines, opinions, corrections to prior facts), call ` + "`remember`" + ` immediately. Do not wait to be asked. Capture it verbatim, with its source.
+
+• YOU are the reasoning layer; Mazarbul stores, indexes, recalls, and keeps provenance. Usually no server-side model runs, so ` + "`remember`" + ` indexes the text for recall but extracts no entities or relations. Write the structure you see yourself: ` + "`entities`" + ` to find an existing anchor, ` + "`createEntity`" + ` only if none matches, ` + "`relate`" + ` / ` + "`relateBatch`" + ` for triples, ` + "`fact`" + ` for attributes, ` + "`addIdentifier`" + ` for aliases and IDs. Pass ` + "`source`" + ` on ` + "`relate`" + ` and ` + "`fact`" + ` so each record says where it came from.
 
 • AFTER a recall, traverse the graph yourself with the LLM-free navigation verbs rather than re-querying: each hit carries entity anchors you can feed into ` + "`get`" + ` (fetch any entities/episodes/relations record by name), ` + "`neighbors`" + ` (expand an entity up to 6 hops), and ` + "`relations`" + ` (list an entity's typed edges). Use ` + "`entities`" + ` to discover an anchor by kind/name and ` + "`introspect`" + ` to learn the predicate + entity-kind vocabulary. You do the reasoning; these calls are cheap and add no model cost.
-
-• WHEN you already hold a fact as a (subject, predicate, object) triple, write it directly with ` + "`relate`" + ` instead of phrasing prose for ` + "`remember`" + `.
 
 • CHOOSE the scope of every write by who should see it: omit scope (personal) for records private to the user; scope=project for records tied to the current repo/codebase (shared with repo collaborators); scope=team for the shared team brain (requires admitted membership, else E_PERMISSION). Reads default to personal+project — team is an explicit opt-in.
 

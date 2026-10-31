@@ -92,7 +92,7 @@ func lockRender() func() { return func() {} }
 // command registration time.
 func newBoundFlagSet(flags *initFlags) *pflag.FlagSet {
 	fs := pflag.NewFlagSet("init", pflag.ContinueOnError)
-	fs.StringVar(&flags.provider, "provider", "anthropic", "")
+	fs.StringVar(&flags.provider, "provider", ChatProviderNone, "")
 	fs.StringVar(&flags.chatModel, "chat-model", "", "")
 	fs.StringVar(&flags.embedProvider, "embed", EmbedProviderOllama, "")
 	fs.StringVar(&flags.embedModel, "embed-model", ollama.DefaultEmbedModel, "")
@@ -130,7 +130,9 @@ func TestValidateInitFlags(t *testing.T) {
 		flags   initFlags
 		wantErr bool
 	}{
-		{"anthropic default", initFlags{provider: "anthropic", embedProvider: "ollama"}, false},
+		{"none default", initFlags{provider: "none", embedProvider: "ollama"}, false},
+		{"none embed none", initFlags{provider: "none", embedProvider: "none"}, false},
+		{"anthropic", initFlags{provider: "anthropic", embedProvider: "ollama"}, false},
 		{"anthropic with model", initFlags{provider: "anthropic", chatModel: "claude-x", embedProvider: "ollama"}, false},
 		{"anthropic embed none", initFlags{provider: "anthropic", embedProvider: "none"}, false},
 		{"ollama with model", initFlags{provider: "ollama", chatModel: "llama3:latest", embedProvider: "ollama"}, false},
@@ -639,6 +641,18 @@ func TestUserConfigFromFlags_TableOmissions(t *testing.T) {
 			wantEmbedKV: "none",
 		},
 		{
+			name:        "none+ollama keeps ollama table for embeddings only",
+			flags:       initFlags{provider: "none", embedProvider: "ollama", embedModel: ollama.DefaultEmbedModel},
+			wantOllama:  true,
+			wantEmbedKV: "ollama",
+		},
+		{
+			name:        "none+none omits ollama table",
+			flags:       initFlags{provider: "none", embedProvider: "none"},
+			wantOllama:  false,
+			wantEmbedKV: "none",
+		},
+		{
 			name:        "ollama+none keeps ollama table (chat slot uses it)",
 			flags:       initFlags{provider: "ollama", chatModel: "llama3:latest", embedProvider: "none"},
 			wantOllama:  true,
@@ -663,6 +677,98 @@ func TestUserConfigFromFlags_TableOmissions(t *testing.T) {
 				if got := cfg.Providers["ollama"].EmbedModel; got != "" {
 					t.Errorf("[providers.ollama].embed_model = %q, want empty (embed=none)", got)
 				}
+			}
+		})
+	}
+}
+
+// TestInit_ProviderNone pins the agent-side-reasoning default: `maz init
+// --yes` with no --provider writes defaults.chat = "none" and records no chat
+// model anywhere (no [providers.anthropic] table, no ollama chat_model), while
+// an explicit --provider or a bare --api-key still selects a chat model.
+func TestInit_ProviderNone(t *testing.T) {
+	cases := []struct {
+		name          string
+		args          []string
+		wantChat      string
+		wantAnthropic bool
+		wantOllamaCM  string
+		wantSummary   string
+	}{
+		{name: "default is none", args: nil, wantChat: "none", wantSummary: "your agent does the reasoning"},
+		{name: "explicit none", args: []string{"--provider=none"}, wantChat: "none", wantSummary: "your agent does the reasoning"},
+		{name: "explicit ollama", args: []string{"--provider=ollama"}, wantChat: "ollama", wantAnthropic: true, wantOllamaCM: ollama.DefaultChatModel, wantSummary: "ollama (" + ollama.DefaultChatModel + ")"},
+		{name: "explicit anthropic", args: []string{"--provider=anthropic"}, wantChat: "anthropic", wantAnthropic: true, wantSummary: "anthropic (claude-opus-4-7)"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prev := anthropicKeyAvailableFn
+			t.Cleanup(func() { anthropicKeyAvailableFn = prev })
+			anthropicKeyAvailableFn = func() bool { return true }
+
+			flags := &initFlags{}
+			fs := newBoundFlagSet(flags)
+			if err := fs.Parse(tc.args); err != nil {
+				t.Fatalf("parse flags: %v", err)
+			}
+			detectYesDefaults(fs, flags)
+			impliedProviderFromAPIKey(fs, flags)
+			if err := validateInitFlags(flags); err != nil {
+				t.Fatalf("validateInitFlags: %v", err)
+			}
+
+			dir := filepath.Join(t.TempDir(), "data")
+			var buf bytes.Buffer
+			if err := runInitCLI(initTestCmd(context.Background(), &buf), dir, flags, true, daemonModeOff, ""); err != nil {
+				t.Fatalf("runInitCLI: %v", err)
+			}
+			cfg, err := config.LoadUserConfig(dir)
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			if got := cfg.Defaults.Chat; got != tc.wantChat {
+				t.Errorf("Defaults.Chat = %q, want %q", got, tc.wantChat)
+			}
+			if _, ok := cfg.Providers["anthropic"]; ok != tc.wantAnthropic {
+				t.Errorf("has [providers.anthropic] = %v, want %v", ok, tc.wantAnthropic)
+			}
+			if got := cfg.Providers["ollama"].ChatModel; got != tc.wantOllamaCM {
+				t.Errorf("[providers.ollama].chat_model = %q, want %q", got, tc.wantOllamaCM)
+			}
+			if got := cfg.Providers["ollama"].EmbedModel; got != ollama.DefaultEmbedModel {
+				t.Errorf("[providers.ollama].embed_model = %q, want %q", got, ollama.DefaultEmbedModel)
+			}
+			if !strings.Contains(buf.String(), tc.wantSummary) {
+				t.Errorf("summary missing %q:\n%s", tc.wantSummary, buf.String())
+			}
+		})
+	}
+}
+
+// TestImpliedProviderFromAPIKey: a bare --api-key selects Anthropic now that
+// the default is none; an explicit --provider always wins.
+func TestImpliedProviderFromAPIKey(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "no key keeps none", args: nil, want: "none"},
+		{name: "bare key implies anthropic", args: []string{"--api-key=sk-test"}, want: "anthropic"},
+		{name: "explicit provider wins", args: []string{"--api-key=sk-test", "--provider=ollama"}, want: "ollama"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			flags := &initFlags{}
+			fs := newBoundFlagSet(flags)
+			if err := fs.Parse(tc.args); err != nil {
+				t.Fatalf("parse flags: %v", err)
+			}
+			impliedProviderFromAPIKey(fs, flags)
+			if flags.provider != tc.want {
+				t.Errorf("provider = %q, want %q", flags.provider, tc.want)
 			}
 		})
 	}
