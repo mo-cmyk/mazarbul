@@ -148,6 +148,43 @@ func TestDefaultChain_UsesFileProviderWhenEnvSet(t *testing.T) {
 	}
 }
 
+// TestDefaultChain_HeadlessFallsBackToStateDir verifies that when the OS
+// keychain is unreachable (headless Linux) and EnvSecretsDir is unset, secrets
+// land in $XDG_STATE_HOME/mazarbul/secrets instead of failing.
+func TestDefaultChain_HeadlessFallsBackToStateDir(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv(EnvSecretsDir, "")
+	t.Setenv("XDG_STATE_HOME", state)
+	orig := keychainReachable
+	keychainReachable = func() bool { return false }
+	t.Cleanup(func() { keychainReachable = orig })
+	ctx := context.Background()
+
+	if err := DefaultChain().Set(ctx, "mazarbul:watchword", "correct horse"); err != nil {
+		t.Fatalf("Set via DefaultChain: %v", err)
+	}
+	got, err := PersistentChain().Get(ctx, "mazarbul:watchword")
+	if err != nil || got != "correct horse" {
+		t.Errorf("Get via PersistentChain: got (%q, %v), want (\"correct horse\", nil)", got, err)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(state, "mazarbul", "secrets")); len(entries) == 0 {
+		t.Error("headless secrets dir is empty; secret did not route to FileProvider")
+	}
+}
+
+// TestPersistentStore_KeychainWhenReachable verifies the fallback never
+// triggers on a host whose keychain works.
+func TestPersistentStore_KeychainWhenReachable(t *testing.T) {
+	t.Setenv(EnvSecretsDir, "")
+	orig := keychainReachable
+	keychainReachable = func() bool { return true }
+	t.Cleanup(func() { keychainReachable = orig })
+
+	if _, ok := persistentStore().(*KeychainProvider); !ok {
+		t.Errorf("persistentStore() = %T, want *KeychainProvider", persistentStore())
+	}
+}
+
 func fileProviderForTest(t *testing.T) *FileProvider {
 	t.Helper()
 	p, err := NewFileProvider(t.TempDir())

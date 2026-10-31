@@ -97,7 +97,7 @@ The toggle is **forward-only either way**:
 - Plaintext → encrypted: future seals are XChaCha20-Poly1305 sealed; **previously-pushed plaintext stays in git history**. You cannot un-publish a leak by re-encrypting.
 - Encrypted → plaintext: future seals are JSONL; old `.maz` chunks remain encrypted on disk and continue to be readable by the daemon (it carries both modes).
 
-When at least one scope is encrypted, the on-the-wire object is the **sealed chunk**: ~10 000 events from one scope, gzip-compressed and XChaCha20-Poly1305-encrypted under that scope's key. The transport — git in v0.x — sees ciphertext only. The open JSONL log on the local device always remains plaintext for fast reads. Keys are held in the OS keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows).
+When at least one scope is encrypted, the on-the-wire object is the **sealed chunk**: ~10 000 events from one scope, gzip-compressed and XChaCha20-Poly1305-encrypted under that scope's key. The transport — git in v0.x — sees ciphertext only. The open JSONL log on the local device always remains plaintext for fast reads. Keys are held in the OS keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows). `MAZ_SECRETS_DIR` routes them to a directory of 0600 files instead. On a headless Linux host (no D-Bus session bus and no `dbus-launch`, e.g. a server or container) the keychain is unreachable, so Mazarbul falls back to the same file store under `$XDG_STATE_HOME/mazarbul/secrets` (default `~/.local/state/mazarbul/secrets`) rather than failing.
 
 **Cipher:** XChaCha20-Poly1305 AEAD via `golang.org/x/crypto/chacha20poly1305`. 24-byte random nonce per seal; 16-byte authentication tag. Implemented in `internal/watchword`.
 
