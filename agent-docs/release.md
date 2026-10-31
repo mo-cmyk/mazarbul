@@ -57,10 +57,69 @@ binary → `release-rpath.sh` → stage (`maz`, `lib/`, `man/`, `completions/`,
 `LICENSE`, `NOTICE`, `README.md`) → **relocate-and-run smoke test** (copy to a clean dir
 with no module-cache rpath, run `maz --version`, assert the version, then
 `maz init` a temp data dir and assert `maz doctor` reports `ladybug.open` ok, so
-the engine is actually loaded and a DB opened) → `tar.gz`.
+the engine is actually loaded and a DB opened) → MCP Bundle
+(`scripts/mcpb-bundle.sh`, see below) → `tar.gz`.
 
-**`assemble` job**: download all archives → `sha256sum > checksums.txt` →
-upload combined dist; if `publish`, `gh release upload <tag>`.
+**`assemble` job**: download all archives + bundles →
+`sha256sum mazarbul_*.tar.gz mazarbul_*.mcpb > checksums.txt` → upload combined
+dist; if `publish`, `gh release upload <tag>` (tarballs, `.mcpb`s, checksums).
+
+## MCP Bundles (`.mcpb`) and the MCP Registry
+
+Every release also ships one **MCP Bundle** per target,
+`mazarbul_<tag>_<os>_<arch>.mcpb`, next to the tarballs and in `checksums.txt`.
+An MCPB (formerly DXT, spec: `github.com/modelcontextprotocol/mcpb`,
+`MANIFEST.md`, `manifest_version` 0.3) is a zip with `manifest.json` at the
+root that Claude Desktop and other MCPB clients install in one click.
+
+- **Layout:** `manifest.json`, `server/maz`, `server/lib/<liblbug soname>`
+  (only the file the binary links, dereferenced: zip packers drop symlinks, and
+  the rpath `@loader_path/lib` / `$ORIGIN/lib` finds it), `LICENSE`, `NOTICE`,
+  `README.md`.
+- **Manifest:** `server.type: binary`, `mcp_config.command:
+  ${__dirname}/server/maz`, `args: ["mcp", "serve"]`, `compatibility.platforms:
+  [<os>]`, version = tag without `v`. No data dir is set, so the bundle uses the
+  user's default data dir and shares memory with the CLI; `maz mcp serve`
+  initialises a missing data dir on first start (`maz init` only picks the
+  provider).
+- **One bundle per OS/arch:** the manifest can constrain the OS but not the
+  CPU, and liblbug is a per-platform dynamic lib, so there is no universal bundle.
+- **Build:** `scripts/mcpb-bundle.sh <stage> <tag> <goos> <out.mcpb>` writes the
+  manifest with `jq`, then runs the pinned `@anthropic-ai/mcpb` CLI (`validate`,
+  `pack`, `info`) via `npx`. The build job sets up Node for it.
+
+**`mcp-registry` job** (`release-please.yml`, after `release-build`, parallel to
+`homebrew`, skipped when no release is cut): downloads `checksums.txt`, renders
+`server.json` with `scripts/mcp-server-json.sh <tag> <checksums.txt>` (the
+repo-root `server.json` is the template: static metadata, placeholder
+`version`, empty `packages`; the script fills in the version and one
+`registryType: mcpb` package per bundle with its release download URL and
+`fileSha256`), installs a pinned, Sigstore-verified `mcp-publisher`, runs
+`mcp-publisher validate`, `login github-oidc` and `publish`. It publishes
+`io.github.mo-cmyk/mazarbul` to `registry.modelcontextprotocol.io`; PulseMCP
+and other aggregators sync from there.
+
+- **Auth:** GitHub Actions OIDC (`permissions: id-token: write`). The registry
+  grants `io.github.<repo owner>/*` from the token, so there is no secret and
+  no one-time namespace step.
+- **Registry rules:** `description` at most 100 chars; MCPB `identifier` must be
+  a public `https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`
+  URL containing `mcp` (the `.mcpb` extension satisfies this) that the
+  registry HEAD-checks at publish time; `fileSha256` is required. A published
+  version is immutable, so re-running the job for the same tag fails harmlessly.
+- **Platform selection:** `server.json` packages carry no OS/arch field;
+  clients tell the bundles apart by file name (and the bundle manifest's
+  `compatibility.platforms`). darwin/arm64 is listed first.
+- **Upgrade `mcp-publisher`:** bump `MCP_PUBLISHER_VERSION` in the job; the
+  cosign check pins the certificate identity to that tag.
+
+Verify locally without publishing:
+
+```bash
+scripts/mcpb-bundle.sh <stage> v0.0.0 darwin /tmp/m.mcpb   # stage = maz + lib/
+scripts/mcp-server-json.sh v0.0.0 checksums.txt > /tmp/server.json
+mcp-publisher validate /tmp/server.json
+```
 
 ## Activation gates (dormant by default)
 

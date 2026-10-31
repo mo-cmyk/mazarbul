@@ -9,14 +9,14 @@ name: release
 #   - workflow_dispatch: snapshot validation. Builds + archives all targets and
 #     uploads them as workflow artifacts for inspection. Publishes nothing.
 #   - workflow_call: invoked (gated) by release-please.yml once a release is
-#     cut; with publish=true it attaches the archives + checksums to the tag's
-#     GitHub Release.
+#     cut; with publish=true it attaches the archives, the per-platform MCP
+#     bundles (.mcpb) and checksums to the tag's GitHub Release.
 on:
   workflow_dispatch: {}
   workflow_call:
     inputs:
       publish:
-        description: "Attach archives + checksums to the release for `tag`."
+        description: "Attach archives, MCP bundles + checksums to the release for `tag`."
         type: boolean
         default: false
       tag:
@@ -151,6 +151,26 @@ jobs:
             '[.. | objects | select(.name? == "ladybug.open")][0].status == "ok"' >/dev/null || {
             echo "relocated binary could not open the graph store" >&2; exit 1; }
 
+      - name: Set up Node (mcpb CLI)
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      # One-click MCP Bundle for Claude Desktop and other MCPB clients, and the
+      # artifact the MCP Registry entry points at (release-please.yml job
+      # mcp-registry). Packed from the staged tree before it is moved below.
+      - name: Pack MCP bundle (.mcpb)
+        id: mcpb
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          TARGET_OS: ${{ matrix.goos }}
+          TARGET_ARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          bundle="mazarbul_${VERSION}_${TARGET_OS}_${TARGET_ARCH}.mcpb"
+          ./scripts/mcpb-bundle.sh stage "$VERSION" "$TARGET_OS" "$bundle"
+          echo "bundle=${bundle}" >> "$GITHUB_OUTPUT"
+
       - name: Pack archive
         id: pack
         env:
@@ -174,7 +194,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: archive-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ steps.pack.outputs.archive }}
+          path: |
+            ${{ steps.pack.outputs.archive }}
+            ${{ steps.mcpb.outputs.bundle }}
           if-no-files-found: error
           retention-days: 7
 
@@ -185,7 +207,7 @@ jobs:
     permissions:
       contents: write # gh release upload (only exercised when publish=true)
     steps:
-      - name: Download archives
+      - name: Download archives + MCP bundles
         uses: actions/download-artifact@v4
         with:
           pattern: archive-*
@@ -196,7 +218,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          sha256sum mazarbul_*.tar.gz > checksums.txt
+          sha256sum mazarbul_*.tar.gz mazarbul_*.mcpb > checksums.txt
           echo "== checksums.txt ==" && cat checksums.txt
 
       - name: Upload combined dist (snapshot inspection)
@@ -207,7 +229,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Publish archives to release
+      - name: Publish archives + MCP bundles to release
         if: ${{ inputs.publish }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -218,5 +240,5 @@ jobs:
           set -euo pipefail
           test -n "$INPUT_TAG" || { echo "publish requires a tag" >&2; exit 1; }
           gh release upload "$INPUT_TAG" \
-            dist/mazarbul_*.tar.gz dist/checksums.txt \
+            dist/mazarbul_*.tar.gz dist/mazarbul_*.mcpb dist/checksums.txt \
             --repo "$REPO" --clobber
