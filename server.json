@@ -1,0 +1,13 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.mo-cmyk/mazarbul",
+  "title": "Mazarbul",
+  "description": "Local-first memory for AI agents: entities, facts, relations and documents with semantic recall.",
+  "repository": {
+    "url": "https://github.com/mo-cmyk/mazarbul",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/mo-cmyk/mazarbul",
+  "version": "0.0.0",
+  "packages": []
+}
