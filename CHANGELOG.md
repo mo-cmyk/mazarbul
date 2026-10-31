@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/mo-cmyk/mazarbul/compare/v0.2.2...v0.2.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* **preset:** read presets while the daemon holds the store ([#17](https://github.com/mo-cmyk/mazarbul/issues/17)) ([468e09c](https://github.com/mo-cmyk/mazarbul/commit/468e09c5190a414c7eecd95871ff21944c2c6483))
+
 ## [0.2.2](https://github.com/mo-cmyk/mazarbul/compare/v0.2.1...v0.2.2) (2026-10-31)
 
 
