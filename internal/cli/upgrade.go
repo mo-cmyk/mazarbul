@@ -418,10 +418,68 @@ func promptUpgradeAction(cmd *cobra.Command, latest string) (upgradeAction, erro
 // renderManagedInstall prints the delegate command for a package-manager
 // install (Homebrew, mise, Scoop) where maz cannot self-replace. The caller
 // is responsible for routing JSON requests through runUpgradeJSON instead.
+//
+// When the daemon's launchd agent is registered, the package manager will
+// replace the binary under it and macOS then refuses to respawn the job
+// (OS_REASON_CODESIGNING), so the follow-up re-register command is printed
+// too. The package manager runs outside maz, so the re-register cannot
+// happen automatically on this path.
 func renderManagedInstall(cmd *cobra.Command, info *upgradeInstallInfo) error {
-	_, err := fmt.Fprintf(cmd.OutOrStdout(), "maz was installed via %s; run `%s` to update\n",
-		info.Method, info.UpgradeCommand)
+	w := cmd.OutOrStdout()
+	if _, err := fmt.Fprintf(w, "maz was installed via %s; run `%s` to update\n",
+		info.Method, info.UpgradeCommand); err != nil {
+		return err
+	}
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background() // cobra returns nil for a command never run via Execute
+	}
+	if !launchAgentRegistered(ctx) {
+		return nil
+	}
+	_, err := fmt.Fprintln(w, "then run `maz daemon install` so launchd restarts the daemon on the new binary")
 	return err
+}
+
+// reregisterLaunchAgentFn re-registers the daemon launch agent. Tests stub
+// it; production code must not reassign it.
+//
+//nolint:gochecknoglobals // test seam for the launchd re-register
+var reregisterLaunchAgentFn = daemon.ReregisterLaunchAgent
+
+// launchAgentRegistered reports whether the daemon's launch agent is
+// installed AND registered with launchd, i.e. launchd has pinned the
+// current binary's code signature and will refuse a replaced binary.
+// An installed-but-unloaded agent (after `maz daemon stop`) is not
+// registered: launchd re-reads it fresh at the next login. Best-effort:
+// a probe error reads as not registered.
+func launchAgentRegistered(ctx context.Context) bool {
+	st, err := readLaunchAgentStateFn(ctx)
+	return err == nil && st.Installed && st.Loaded
+}
+
+// reregisterLaunchAgentAfterUpgrade re-registers a registered daemon
+// launch agent after the binary was replaced, so launchd pins the new
+// binary's code signature (it refuses to spawn a replaced binary with
+// OS_REASON_CODESIGNING otherwise) and the daemon restarts on the new
+// version. Returns false when no agent is registered so the caller falls
+// back to the one-shot restart. Best-effort: a failure prints the manual
+// command and leaves the upgrade itself successful.
+func reregisterLaunchAgentAfterUpgrade(cmd *cobra.Command) bool {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !launchAgentRegistered(ctx) {
+		return false
+	}
+	errw := cmd.ErrOrStderr()
+	if err := reregisterLaunchAgentFn(ctx); err != nil {
+		_, _ = fmt.Fprintf(errw, "upgraded; could not re-register the daemon launchd agent: %v\n  run `maz daemon install` to restart the daemon on the new binary\n", err) //nolint:errcheck // advisory
+		return true
+	}
+	_, _ = fmt.Fprintln(errw, "re-registered the launchd-managed daemon onto the new version") //nolint:errcheck // advisory
+	return true
 }
 
 // upgradeUpToDate reports whether the resolved release means no install is
@@ -490,9 +548,14 @@ func tokenHint(err error, token string) error {
 
 // restartDaemonAfterUpgrade restarts a running daemon so it picks up the new
 // binary (a live daemon keeps serving the old in-memory code until restarted).
+// A registered launchd agent is re-registered instead, whether or not the
+// daemon is currently running (see reregisterLaunchAgentAfterUpgrade).
 // It is best-effort: any failure prints an advisory and leaves the upgrade
 // itself successful.
 func restartDaemonAfterUpgrade(cmd *cobra.Command) {
+	if reregisterLaunchAgentAfterUpgrade(cmd) {
+		return
+	}
 	errw := cmd.ErrOrStderr()
 	dataDir, _ := cmd.Root().PersistentFlags().GetString("data-dir")
 	if dataDir == "" {

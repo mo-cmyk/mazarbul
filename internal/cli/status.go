@@ -222,6 +222,9 @@ func formatDaemonRow(c *colorizer.Colorizer, ds daemonReadState) string {
 	case daemonStatusOtherDataDir:
 		hint := c.Dim("→ maz daemon start")
 		return c.Warn("~") + fmt.Sprintf("  running elsewhere (pid %d)  ", ds.PID) + hint
+	case daemonStatusNotServing:
+		hint := c.Dim("→ retry in a few seconds")
+		return c.Warn("~") + fmt.Sprintf("  not serving yet (pid %d)  ", ds.PID) + hint
 	default: // daemonStatusNotRunning or any unknown state
 		hint := c.Dim("→ maz daemon start")
 		return c.Err("✗") + "  not running  " + hint

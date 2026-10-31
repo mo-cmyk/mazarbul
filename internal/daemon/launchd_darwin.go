@@ -231,21 +231,126 @@ func InstallOllamaLaunchAgent(ctx context.Context, dataDir string, opts OllamaLa
 // otherwise be a no-op. Recover by booting the stale job out and
 // bootstrapping the fresh plist. Label is parameterised so both the
 // Ollama agent and the daemon's own agent share this one reload path.
+//
+// Modern launchctl reports an already-loaded label as the opaque
+// "Bootstrap failed: 5: Input/output error" rather than "service already
+// loaded", and `bootout` returns before launchd has finished tearing the
+// job down. So the loaded check runs first (`launchctl print`), a bootout
+// is followed by waiting until the label is really gone, and a bootstrap
+// that still hits the transient I/O error is retried with backoff.
 func bootstrapOrReload(ctx context.Context, domain, label, plistPath string) error {
-	cerr := runLaunchctl(ctx, "bootstrap", domain, plistPath)
-	if cerr == nil {
-		return nil
+	// A print error other than "not found" leaves the state unknown; fall
+	// through to bootstrap and let its own error (or retry) decide.
+	if loaded, _ := launchdJobLoaded(ctx, domain, label); loaded { //nolint:errcheck // unknown state falls through to bootstrap
+		if err := bootoutAndWait(ctx, domain, label); err != nil {
+			return err
+		}
 	}
-	if !alreadyLoaded(cerr) {
-		return fmt.Errorf("daemon: launchctl bootstrap %s: %w", plistPath, cerr)
+	cerr := bootstrapWithRetry(ctx, domain, plistPath)
+	if cerr == nil || !alreadyLoaded(cerr) {
+		return cerr
 	}
-	if berr := runLaunchctl(ctx, "bootout", domain+"/"+label); berr != nil && !notLoaded(berr) {
-		return fmt.Errorf("daemon: launchctl bootout for reload %s: %w", label, berr)
+	// Something loaded the label between our check and the bootstrap:
+	// reload once more so the fresh plist wins.
+	if err := bootoutAndWait(ctx, domain, label); err != nil {
+		return err
 	}
-	if rerr := runLaunchctl(ctx, "bootstrap", domain, plistPath); rerr != nil {
-		return fmt.Errorf("daemon: launchctl bootstrap (reload) %s: %w", plistPath, rerr)
+	return bootstrapWithRetry(ctx, domain, plistPath)
+}
+
+// launchd wait/retry tuning. Package variables (not constants) only so
+// tests can shrink them; production code must not reassign them.
+//
+//nolint:gochecknoglobals // test seams for the bootout wait and bootstrap retry timing
+var (
+	// Unload timeout: how long bootoutAndWait polls for a booted-out
+	// label to disappear. The launchd exit timeout is a few seconds and
+	// the daemon drains for up to 10 s before that.
+	launchdUnloadTimeout = 10 * time.Second
+	// Poll interval: the `launchctl print` polling cadence.
+	launchdPollInterval = 200 * time.Millisecond
+	// Retry backoff: the delays before each bootstrap retry on the
+	// transient exit-5 I/O error (4 retries, 7.5 s total).
+	bootstrapRetryBackoff = []time.Duration{
+		500 * time.Millisecond, 1 * time.Second, 2 * time.Second, 4 * time.Second,
+	}
+)
+
+// launchdJobLoaded reports whether label is registered in domain, via
+// `launchctl print <domain>/<label>`. Unlike `launchctl list`, print is
+// precise about the target domain and fails with "Could not find
+// service" (exit 113) once a booted-out job is fully gone.
+func launchdJobLoaded(ctx context.Context, domain, label string) (bool, error) {
+	err := runLaunchctl(ctx, "print", domain+"/"+label)
+	if err == nil {
+		return true, nil
+	}
+	if notLoaded(err) {
+		return false, nil
+	}
+	return false, fmt.Errorf("daemon: launchctl print %s: %w", label, err)
+}
+
+// waitLaunchdJobGone polls until label is no longer registered in domain
+// or launchdUnloadTimeout elapses. `launchctl bootout` is asynchronous:
+// it returns while launchd is still stopping the job, and a bootstrap of
+// the same label in that window fails with exit 5 (Input/output error).
+func waitLaunchdJobGone(ctx context.Context, domain, label string) error {
+	deadline := time.Now().Add(launchdUnloadTimeout)
+	for {
+		if loaded, err := launchdJobLoaded(ctx, domain, label); err == nil && !loaded {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("daemon: launchd job %s still registered %s after bootout; wait a few seconds and retry", label, launchdUnloadTimeout)
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("daemon: wait for launchd job %s to unload: %w", label, ctx.Err())
+		case <-time.After(launchdPollInterval):
+		}
+	}
+}
+
+// bootoutAndWait boots label out of domain (a not-loaded label is fine)
+// and waits until launchd reports it gone, so a following bootstrap does
+// not race the asynchronous teardown.
+func bootoutAndWait(ctx context.Context, domain, label string) error {
+	if err := runLaunchctl(ctx, "bootout", domain+"/"+label); err != nil && !notLoaded(err) {
+		return fmt.Errorf("daemon: launchctl bootout %s: %w", label, err)
+	}
+	return waitLaunchdJobGone(ctx, domain, label)
+}
+
+// bootstrapWithRetry runs `launchctl bootstrap domain plistPath`,
+// retrying with bootstrapRetryBackoff while launchd answers with the
+// transient exit-5 I/O error. Any other error returns immediately.
+func bootstrapWithRetry(ctx context.Context, domain, plistPath string) error {
+	err := runLaunchctl(ctx, "bootstrap", domain, plistPath)
+	for _, delay := range bootstrapRetryBackoff {
+		if err == nil || !transientBootstrapError(err) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("daemon: launchctl bootstrap %s: %w", plistPath, ctx.Err())
+		case <-time.After(delay):
+		}
+		err = runLaunchctl(ctx, "bootstrap", domain, plistPath)
+	}
+	if err != nil {
+		return fmt.Errorf("daemon: launchctl bootstrap %s: %w", plistPath, err)
 	}
 	return nil
+}
+
+// transientBootstrapError reports whether err is launchctl's exit-5
+// "Bootstrap failed: 5: Input/output error", which launchd returns while
+// a previous registration of the label is still being torn down.
+func transientBootstrapError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "input/output error") ||
+		strings.Contains(msg, "bootstrap failed: 5:")
 }
 
 // UninstallOllamaLaunchAgent runs `launchctl bootout` to stop the
@@ -305,17 +410,26 @@ func launchdUserDomain() (string, error) {
 	return "gui/" + u.Uid, nil
 }
 
-// runLaunchctl is a single point through which all launchctl invocations
-// flow; gives the test seam (replace with a fake) and the timeout
-// guarantee (no command runs longer than launchctlTimeout).
-func runLaunchctl(ctx context.Context, args ...string) error {
+// launchctlExec runs `launchctl args...` under launchctlTimeout and
+// returns its combined output. It is the single point through which all
+// launchctl invocations flow: a package variable so tests swap in a fake
+// runner (production code must not reassign it).
+//
+//nolint:gochecknoglobals // test seam for the launchctl command runner
+var launchctlExec = func(ctx context.Context, args ...string) (string, error) {
 	cctx, cancel := context.WithTimeout(ctx, launchctlTimeout)
 	defer cancel()
+	out, err := exec.CommandContext(cctx, "launchctl", args...).CombinedOutput()
+	return string(out), err
+}
 
-	cmd := exec.CommandContext(cctx, "launchctl", args...)
-	out, err := cmd.CombinedOutput()
+// runLaunchctl runs launchctl via launchctlExec and folds its output into
+// the error so callers can classify failures (notLoaded, alreadyLoaded,
+// transientBootstrapError) by message.
+func runLaunchctl(ctx context.Context, args ...string) error {
+	out, err := launchctlExec(ctx, args...)
 	if err != nil {
-		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(out))
 	}
 	return nil
 }

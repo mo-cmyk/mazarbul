@@ -68,6 +68,11 @@ class Maz < Formula
         maz init
       Or use a hosted provider:
         maz init --provider anthropic --api-key ...
+
+      If the daemon runs under launchd (maz daemon install), re-run
+        maz daemon install
+      after every brew upgrade: macOS will not start a replaced binary
+      under the old registration (maz doctor flags this as daemon.launchd).
     EOS
   end
 

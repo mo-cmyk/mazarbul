@@ -32,12 +32,16 @@ func newDaemonStatusCmd() *cobra.Command {
 }
 
 func runDaemonStatus(cmd *cobra.Command, w io.Writer, dataDir string) error {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background() // cobra returns nil for a command never run via Execute
+	}
 	pidPath := daemon.DataDirPIDPath(dataDir)
 
 	info, err := daemon.ReadPID(pidPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return renderStatusAbsent(cmd, w)
+			return renderStatusAbsent(cmd, w, launchdCodesignBlocked(ctx))
 		}
 		return fmt.Errorf("daemon: read pid: %w", err)
 	}
@@ -46,18 +50,23 @@ func runDaemonStatus(cmd *cobra.Command, w io.Writer, dataDir string) error {
 	// perspective: there is no daemon. Treat it as stale so the user
 	// is not misled into thinking the daemon is running.
 	if !info.Running || !daemon.IsMazDaemon(info.PID, info.Token) {
-		return renderStatusStale(cmd, w, info.PID)
+		return renderStatusStale(cmd, w, info.PID, launchdCodesignBlocked(ctx))
 	}
 
-	// The PID file is global; the socket is per-data-dir. If the
-	// daemon is running but its socket isn't at the dataDir the user
-	// asked about, report status="other-book" so a `maz --data-dir
-	// /tmp/B daemon status` does not claim a /tmp/A daemon as the
-	// answer. Without this, the status command mixed PID-from-one-
-	// book with socket-path-from-another.
+	// A live daemon PID without a socket at the dataDir the user asked
+	// about is classified by socketMissingStatus: stale (it exited
+	// meanwhile), another book (the PID file names a different data dir),
+	// or not yet / no longer serving this book.
 	socket := daemonSocketPath(dataDir)
 	if _, sterr := os.Stat(socket); errors.Is(sterr, os.ErrNotExist) {
-		return renderStatusOtherBook(cmd, w, info.PID, socket)
+		switch socketMissingStatus(info, dataDir) {
+		case daemonStatusStale:
+			return renderStatusStale(cmd, w, info.PID, launchdCodesignBlocked(ctx))
+		case daemonStatusNotServing:
+			return renderStatusNotServing(cmd, w, info.PID, socket)
+		default:
+			return renderStatusOtherBook(cmd, w, info.PID, socket)
+		}
 	}
 
 	startedAt, terr := pidFileStartTime(pidPath)
@@ -69,7 +78,7 @@ func runDaemonStatus(cmd *cobra.Command, w io.Writer, dataDir string) error {
 	uptime := time.Since(startedAt).Round(time.Second)
 	// Best-effort: surface whether launchd owns this daemon so the user
 	// knows `maz daemon stop` will boot it out (vs a one-shot SIGTERM).
-	launchd, _ := launchAgentLoadedFn(cmd.Context()) //nolint:errcheck // best-effort launchd ownership hint; absence is reported as not-managed
+	launchd, _ := launchAgentLoadedFn(ctx) //nolint:errcheck // best-effort launchd ownership hint; absence is reported as not-managed
 	// Whether TCP is live is a property of the *running* daemon, not of
 	// this status command's shell. Sourcing it from MAZ_HTTP_ADDR would
 	// report the caller's env, which can disagree with how the daemon was
@@ -78,6 +87,61 @@ func runDaemonStatus(cmd *cobra.Command, w io.Writer, dataDir string) error {
 	// on/off signal.
 	httpEnabled := daemonHTTPEnabled(dataDir)
 	return renderStatusRunning(cmd, w, info.PID, uptime, httpEnabled, socket, config.DaemonLogFile(), launchd)
+}
+
+// readLaunchAgentStateFn is the launchd state probe behind the
+// codesign-blocked hint. Tests stub it; production code must not
+// reassign it.
+//
+//nolint:gochecknoglobals // test seam for the launchd state probe
+var readLaunchAgentStateFn = daemon.ReadLaunchAgentState
+
+// launchdCodesignBlocked reports whether the daemon's launch agent is
+// installed but launchd refuses to spawn it because the maz binary was
+// replaced after registration (see daemon.LaunchAgentState). Read-only
+// and best-effort: a probe error reads as not blocked.
+func launchdCodesignBlocked(ctx context.Context) bool {
+	st, err := readLaunchAgentStateFn(ctx)
+	return err == nil && st.CodesignBlocked()
+}
+
+// launchdCodesignHint is the fix shown when launchdCodesignBlocked.
+const launchdCodesignHint = "launchd cannot start the daemon because the maz binary was replaced after the agent was installed; run `maz daemon install` (or `maz doctor fix`) to re-register it"
+
+// socketMissingStatus classifies a live, ownership-verified daemon PID
+// whose Unix socket is absent for dataDir:
+//
+//   - daemonStatusStale when the process is gone by now. On shutdown the
+//     daemon removes its socket before its PID file, so a daemon that is
+//     exiting (e.g. right after `maz daemon uninstall`) passes the first
+//     liveness check and dies before the socket stat.
+//   - daemonStatusOtherDataDir when the PID file records a different
+//     data dir (a shared MAZ_PIDFILE) or none at all (legacy file).
+//   - daemonStatusNotServing when the PID file names this very data dir:
+//     the daemon is starting, stopping, or mid-rebuild, and it is not
+//     "another book".
+func socketMissingStatus(info daemon.PIDInfo, dataDir string) string {
+	if !daemon.IsMazDaemon(info.PID, info.Token) {
+		return daemonStatusStale
+	}
+	if info.DataDir == "" || !sameDir(info.DataDir, dataDir) {
+		return daemonStatusOtherDataDir
+	}
+	return daemonStatusNotServing
+}
+
+func renderStatusNotServing(cmd *cobra.Command, w io.Writer, pid int, expectedSocket string) error {
+	wr := output.From(cmd)
+	if wr.Format() == output.FormatJSON || wr.Format() == output.FormatNDJSON {
+		return json.NewEncoder(w).Encode(map[string]any{
+			"status":         daemonStatusNotServing,
+			"pid":            pid,
+			"expectedSocket": expectedSocket,
+			"hint":           "the daemon (pid " + strconv.Itoa(pid) + ") is starting, stopping, or mid-rebuild; retry in a few seconds",
+		})
+	}
+	_, err := fmt.Fprintf(w, "not serving    daemon pid %d is alive but has no socket at %s yet (starting, stopping, or mid-rebuild); retry in a few seconds\n", pid, expectedSocket)
+	return err
 }
 
 // daemonHTTPEnabled reports whether the running daemon enabled the opt-in
@@ -146,24 +210,50 @@ func renderStatusRunning(cmd *cobra.Command, w io.Writer, pid int, uptime time.D
 	return err
 }
 
-func renderStatusStale(cmd *cobra.Command, w io.Writer, pid int) error {
+func renderStatusStale(cmd *cobra.Command, w io.Writer, pid int, codesignBlocked bool) error {
 	wr := output.From(cmd)
 	if wr.Format() == output.FormatJSON || wr.Format() == output.FormatNDJSON {
-		return json.NewEncoder(w).Encode(map[string]any{
+		body := map[string]any{
 			"status": "stale",
 			"pid":    pid,
-		})
+		}
+		addCodesignHint(body, codesignBlocked)
+		return json.NewEncoder(w).Encode(body)
 	}
-	_, err := fmt.Fprintf(w, "not running (stale pid %d)\n", pid)
-	return err
+	if _, err := fmt.Fprintf(w, "not running (stale pid %d)\n", pid); err != nil {
+		return err
+	}
+	return printCodesignHint(w, codesignBlocked)
 }
 
-func renderStatusAbsent(cmd *cobra.Command, w io.Writer) error {
+func renderStatusAbsent(cmd *cobra.Command, w io.Writer, codesignBlocked bool) error {
 	wr := output.From(cmd)
 	if wr.Format() == output.FormatJSON || wr.Format() == output.FormatNDJSON {
-		return json.NewEncoder(w).Encode(map[string]any{"status": "not_running"})
+		body := map[string]any{"status": "not_running"}
+		addCodesignHint(body, codesignBlocked)
+		return json.NewEncoder(w).Encode(body)
 	}
-	_, err := fmt.Fprintln(w, "not running")
+	if _, err := fmt.Fprintln(w, "not running"); err != nil {
+		return err
+	}
+	return printCodesignHint(w, codesignBlocked)
+}
+
+// addCodesignHint adds the launchd codesign fields to a not-running JSON
+// body when the agent is blocked.
+func addCodesignHint(body map[string]any, codesignBlocked bool) {
+	if codesignBlocked {
+		body["launchd"] = "codesign_blocked"
+		body["hint"] = launchdCodesignHint
+	}
+}
+
+// printCodesignHint prints the launchd codesign fix line when blocked.
+func printCodesignHint(w io.Writer, codesignBlocked bool) error {
+	if !codesignBlocked {
+		return nil
+	}
+	_, err := fmt.Fprintln(w, "  "+launchdCodesignHint)
 	return err
 }
 
@@ -175,6 +265,7 @@ const (
 	daemonStatusNotRunning   = "not_running"
 	daemonStatusStale        = "stale"
 	daemonStatusOtherDataDir = "other_data_dir"
+	daemonStatusNotServing   = "not_serving"
 )
 
 // daemonReadState is the flat daemon summary produced by [readDaemonState].
@@ -208,7 +299,7 @@ func readDaemonState(ctx context.Context, dataDir string) daemonReadState {
 	}
 	socket := daemonSocketPath(dataDir)
 	if _, sterr := os.Stat(socket); errors.Is(sterr, os.ErrNotExist) {
-		return daemonReadState{Status: daemonStatusOtherDataDir, PID: info.PID, Socket: socket, LogFile: logFile}
+		return daemonReadState{Status: socketMissingStatus(info, dataDir), PID: info.PID, Socket: socket, LogFile: logFile}
 	}
 	// pidFileStartTime may fail (e.g. the file was just rotated away); falling
 	// back to time.Now() yields uptime 0s, which is honest about the unknown

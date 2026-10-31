@@ -94,6 +94,10 @@ func DefaultChecks(dataDir string) []Check {
 		newLadybugCheck(dataDir),
 		newMCPUnixCheck(dataDir),
 		newMCPHealthzCheck(dataDir),
+		// The daemon's launchd agent is global (one label per user) and
+		// config-independent; it catches the launch constraint launchd
+		// rejects after an in-place binary upgrade.
+		newDaemonLaunchdCheck(),
 		newLoggingCheck(),
 		// watch_fs liveness reads only a pidfile / launchd job, so it is
 		// config-independent and must register before the config-missing
