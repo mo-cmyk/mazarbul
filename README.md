@@ -53,6 +53,8 @@ brew install mo-cmyk/mazarbul/maz
 
 The installer verifies the download checksum, places `maz` plus its bundled engine library and man pages, and sets up a local model provider (it installs [Ollama](https://ollama.com) and pulls the embedding model semantic recall needs, unless you opt out with `--no-ollama`). It pulls no chat model: your agent does the reasoning. Then run `maz init`. If you want Mazarbul to reason on its own as well (agent-less ingestion, `maz ask`), add `--with-chat-model` to the installer for a local model, or run `maz init --provider anthropic --api-key ...` for a remote one.
 
+**MCP Registry / one-click bundle.** Every [release](https://github.com/mo-cmyk/mazarbul/releases) ships a `mazarbul_<tag>_<os>_<arch>.mcpb` MCP Bundle per platform that Claude Desktop and other MCPB clients install directly. It runs `maz mcp serve` against your default data dir, so it shares memory with the CLI (run `maz init` once to pick a provider). Each release is also published to the [official MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.mo-cmyk/mazarbul`, which registry-aware clients and directories pick up.
+
 <details>
 <summary><b>Build from source</b></summary>
 
