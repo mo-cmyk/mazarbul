@@ -2,7 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/mo-cmyk/mazarbul/internal/daemon"
 	"github.com/mo-cmyk/mazarbul/internal/selfupdate"
 	"github.com/mo-cmyk/mazarbul/internal/version"
 )
@@ -460,5 +463,58 @@ func upgradeTestOpts(t *testing.T) *selfupdate.Options {
 	return &selfupdate.Options{
 		Channel: ch,
 		APIBase: os.Getenv("MAZ_API_BASE"),
+	}
+}
+
+// TestUpgradeLaunchdReregister covers the launchd follow-up after a binary
+// replacement: a registered agent is re-registered on self-update (so
+// launchd pins the new binary's signature), and a managed install prints
+// the `maz daemon install` follow-up. An unloaded or absent agent is left
+// alone.
+func TestUpgradeLaunchdReregister(t *testing.T) {
+	registered := daemon.LaunchAgentState{Installed: true, Loaded: true, PID: 1}
+	tests := []struct {
+		name        string
+		st          daemon.LaunchAgentState
+		reregErr    error
+		wantHandled bool
+		wantCalls   int
+		wantStderr  string
+	}{
+		{name: "registered agent is re-registered", st: registered, wantHandled: true, wantCalls: 1, wantStderr: "re-registered"},
+		{name: "re-register failure prints manual command", st: registered, reregErr: errors.New("boom"), wantHandled: true, wantCalls: 1, wantStderr: "maz daemon install"},
+		{name: "stopped agent falls back", st: daemon.LaunchAgentState{Installed: true}},
+		{name: "no agent falls back", st: daemon.LaunchAgentState{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stubLaunchAgentState(t, tc.st)
+			prev := reregisterLaunchAgentFn
+			t.Cleanup(func() { reregisterLaunchAgentFn = prev })
+			calls := 0
+			reregisterLaunchAgentFn = func(context.Context) error { calls++; return tc.reregErr }
+
+			cmd, _ := upgradeRenderCmd(t, "text")
+			var errBuf bytes.Buffer
+			cmd.SetErr(&errBuf)
+			if got := reregisterLaunchAgentAfterUpgrade(cmd); got != tc.wantHandled {
+				t.Fatalf("handled = %v, want %v", got, tc.wantHandled)
+			}
+			if calls != tc.wantCalls {
+				t.Fatalf("re-register calls = %d, want %d", calls, tc.wantCalls)
+			}
+			if !strings.Contains(errBuf.String(), tc.wantStderr) {
+				t.Fatalf("stderr %q missing %q", errBuf.String(), tc.wantStderr)
+			}
+
+			cmd, buf := upgradeRenderCmd(t, "text")
+			info := upgradeInstallInfo{Method: "homebrew", UpgradeCommand: "brew upgrade mazarbul"}
+			if err := renderManagedInstall(cmd, &info); err != nil {
+				t.Fatalf("renderManagedInstall: %v", err)
+			}
+			if hinted := strings.Contains(buf.String(), "maz daemon install"); hinted != tc.st.Loaded {
+				t.Fatalf("managed hint present = %v, want %v: %q", hinted, tc.st.Loaded, buf.String())
+			}
+		})
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"os"
@@ -280,6 +281,11 @@ func stopConflictingOneShot(ctx context.Context) {
 // errors (re-running uninstall is a no-op). This is the correct way to
 // stop a launchd-managed daemon: a bare SIGTERM would be undone by
 // KeepAlive, which relaunches the process the signal just killed.
+//
+// Because bootout is asynchronous, uninstall waits (bounded by
+// launchdUnloadTimeout) until launchd reports the label gone. That makes
+// an immediate `maz daemon install` safe instead of failing with
+// launchctl's exit-5 I/O error.
 func UninstallLaunchAgent(ctx context.Context) error {
 	plistPath, err := LaunchAgentPlistPath()
 	if err != nil {
@@ -297,24 +303,167 @@ func UninstallLaunchAgent(ctx context.Context) error {
 	if rerr := os.Remove(plistPath); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
 		return fmt.Errorf("daemon: remove plist %s: %w", plistPath, rerr)
 	}
-	return nil
+	return waitLaunchdJobGone(ctx, domain, LaunchAgentLabel)
 }
 
 // BootoutLaunchAgent stops a launchd-managed daemon by booting the job
 // out of the user domain WITHOUT removing the plist, so it returns on the
 // next login. This is the `maz daemon stop` path for a persistent daemon:
 // a bare SIGTERM would be undone by KeepAlive, which relaunches the
-// process the signal just killed. Idempotent — a not-loaded service is
-// not an error. Use UninstallLaunchAgent to disable login persistence.
+// process the signal just killed. Idempotent: a not-loaded service is
+// not an error. Waits until launchd reports the label gone (see
+// UninstallLaunchAgent). Use UninstallLaunchAgent to disable login
+// persistence.
 func BootoutLaunchAgent(ctx context.Context) error {
 	domain, err := launchdUserDomain()
 	if err != nil {
 		return err
 	}
-	if cerr := runLaunchctl(ctx, "bootout", domain+"/"+LaunchAgentLabel); cerr != nil && !notLoaded(cerr) {
-		return fmt.Errorf("daemon: launchctl bootout %s: %w", LaunchAgentLabel, cerr)
+	return bootoutAndWait(ctx, domain, LaunchAgentLabel)
+}
+
+// ErrLaunchAgentNotInstalled is returned by ReregisterLaunchAgent when no
+// daemon plist exists to re-register.
+var ErrLaunchAgentNotInstalled = errors.New("daemon: launchd agent not installed")
+
+// ReadLaunchAgentState reports the daemon launch agent's plist presence
+// and launchd's view of the job (`launchctl print`). Read-only. A label
+// launchd does not know is (Loaded=false, nil), not an error.
+func ReadLaunchAgentState(ctx context.Context) (LaunchAgentState, error) {
+	var st LaunchAgentState
+	plistPath, err := LaunchAgentPlistPath()
+	if err != nil {
+		return st, err
 	}
-	return nil
+	if _, serr := os.Stat(plistPath); serr == nil {
+		st.Installed = true
+	}
+	domain, derr := launchdUserDomain()
+	if derr != nil {
+		return st, derr
+	}
+	out, perr := launchctlExec(ctx, "print", domain+"/"+LaunchAgentLabel)
+	if perr != nil {
+		werr := fmt.Errorf("%w: %s", perr, strings.TrimSpace(out))
+		if notLoaded(werr) {
+			return st, nil
+		}
+		return st, fmt.Errorf("daemon: launchctl print %s: %w", LaunchAgentLabel, werr)
+	}
+	st.Loaded = true
+	st.State, st.PID, st.LastExitReason = parseLaunchctlPrint(out)
+	return st, nil
+}
+
+// parseLaunchctlPrint extracts the job-level "state", "pid", and "last
+// exit reason" fields from `launchctl print <domain>/<label>` output.
+// Only top-level lines (exactly one leading tab) are read: nested blocks
+// such as the resource coalition carry their own "state = active" lines.
+func parseLaunchctlPrint(out string) (state string, pid int, lastExitReason string) {
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "\t\t") {
+			continue
+		}
+		key, val, ok := strings.Cut(strings.TrimSpace(line), " = ")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "state":
+			state = val
+		case "pid":
+			if n, err := strconv.Atoi(val); err == nil {
+				pid = n
+			}
+		case "last exit reason":
+			lastExitReason = val
+		}
+	}
+	return state, pid, lastExitReason
+}
+
+// ReregisterLaunchAgent re-registers the installed daemon launch agent
+// with launchd: it rewrites the plist from the installed one (same
+// executable path, data dir, log path, HOME and PATH; fresh ownership
+// token) and runs bootout, wait, bootstrap. Re-registering makes launchd
+// pin the CURRENT binary's code signature, which is the only recovery
+// once an in-place binary replacement left the job in
+// OS_REASON_CODESIGNING. Returns ErrLaunchAgentNotInstalled when no
+// plist exists.
+func ReregisterLaunchAgent(ctx context.Context) error {
+	plistPath, err := LaunchAgentPlistPath()
+	if err != nil {
+		return err
+	}
+	body, err := os.ReadFile(plistPath) // #nosec G304 -- fixed per-user LaunchAgents path
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ErrLaunchAgentNotInstalled
+		}
+		return fmt.Errorf("daemon: read plist %s: %w", plistPath, err)
+	}
+	opts, err := parseDaemonPlist(body)
+	if err != nil {
+		return fmt.Errorf("daemon: parse plist %s: %w", plistPath, err)
+	}
+	return InstallLaunchAgent(ctx, opts)
+}
+
+// plistNode is a generic XML element used to walk a property list.
+type plistNode struct {
+	XMLName xml.Name
+	Text    string      `xml:",chardata"`
+	Nodes   []plistNode `xml:",any"`
+}
+
+// plistDictValue returns the value element following <key>key</key> in
+// a plist <dict>.
+func plistDictValue(dict plistNode, key string) (plistNode, bool) {
+	for i := 0; i+1 < len(dict.Nodes); i++ {
+		if dict.Nodes[i].XMLName.Local == "key" && strings.TrimSpace(dict.Nodes[i].Text) == key {
+			return dict.Nodes[i+1], true
+		}
+	}
+	return plistNode{}, false
+}
+
+// parseDaemonPlist recovers the install-time LaunchAgentOptions from a
+// daemon plist rendered by RenderLaunchAgentPlist. The token is left
+// empty so InstallLaunchAgent mints a fresh one. String values are not
+// trimmed: a path may legitimately start or end with a space.
+func parseDaemonPlist(body []byte) (*LaunchAgentOptions, error) {
+	var doc struct {
+		Dict plistNode `xml:"dict"`
+	}
+	if err := xml.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+	opts := &LaunchAgentOptions{}
+	if args, ok := plistDictValue(doc.Dict, "ProgramArguments"); ok {
+		for i, n := range args.Nodes {
+			if i == 0 {
+				opts.ExecutablePath = n.Text
+			}
+			if n.Text == "--data-dir" && i+1 < len(args.Nodes) {
+				opts.DataDir = args.Nodes[i+1].Text
+			}
+		}
+	}
+	if env, ok := plistDictValue(doc.Dict, "EnvironmentVariables"); ok {
+		if v, ok := plistDictValue(env, "HOME"); ok {
+			opts.Home = v.Text
+		}
+		if v, ok := plistDictValue(env, "PATH"); ok {
+			opts.Path = v.Text
+		}
+	}
+	if v, ok := plistDictValue(doc.Dict, "StandardOutPath"); ok {
+		opts.LogPath = v.Text
+	}
+	if opts.ExecutablePath == "" || opts.DataDir == "" {
+		return nil, errors.New("plist has no maz executable or --data-dir in ProgramArguments")
+	}
+	return opts, nil
 }
 
 // LaunchAgentLoaded reports whether the daemon's launch agent is

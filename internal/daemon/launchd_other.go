@@ -59,6 +59,19 @@ func LaunchAgentLoaded(_ context.Context) (bool, error) { return false, nil }
 // and falls back to the bare /healthz proof.
 func LaunchAgentJobPID(_ context.Context) (int, bool, error) { return 0, false, nil }
 
+// ErrLaunchAgentNotInstalled is returned by ReregisterLaunchAgent when no
+// daemon plist exists to re-register. Never returned on non-Darwin
+// builds (ReregisterLaunchAgent returns ErrLaunchdMacOnly there).
+var ErrLaunchAgentNotInstalled = errors.New("daemon: launchd agent not installed")
+
+// ReadLaunchAgentState reports nothing installed on non-Darwin platforms.
+func ReadLaunchAgentState(_ context.Context) (LaunchAgentState, error) {
+	return LaunchAgentState{}, nil
+}
+
+// ReregisterLaunchAgent errors on non-Darwin platforms.
+func ReregisterLaunchAgent(_ context.Context) error { return ErrLaunchdMacOnly }
+
 // WatchFSLaunchAgentPlistPath errors on non-Darwin platforms.
 func WatchFSLaunchAgentPlistPath() (string, error) { return "", ErrLaunchdMacOnly }
 

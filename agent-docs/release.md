@@ -199,9 +199,35 @@ PATH/Ollama/init:
   `CheckRedirect` strips `Authorization` on any host change). No token against a
   private repo surfaces an actionable "set GITHUB_TOKEN" error.
 - **Daemon.** After a swap, a running daemon (which holds the old binary/lib
-  open) is restarted onto the new version: `maz daemon stop` (a launchd-managed
-  daemon is booted out and relaunched by its KeepAlive), then a respawn for a
-  manually-started daemon. A restart failure degrades to an advisory.
+  open) is restarted onto the new version: a manually-started daemon is
+  stopped and respawned. A restart failure degrades to an advisory.
+- **launchd re-register (macOS).** launchd pins a launch constraint (LWCR) to
+  the binary's code signature when the agent is registered. Once the binary is
+  replaced in place (`maz upgrade`, `brew upgrade`, the install script), launchd
+  refuses to respawn the job: `launchctl print gui/$UID/io.mazarbul.daemon`
+  shows `state = spawn scheduled`, `last exit reason = OS_REASON_CODESIGNING`,
+  and `kickstart -k` does not help. Only a fresh registration (bootout, wait
+  until the label is gone, bootstrap) pins the new signature. So:
+  - `maz upgrade` (self-update) re-registers a registered agent automatically
+    after the swap, reusing the installed plist's binary path, data dir, log
+    path, HOME and PATH (fresh token), whether or not the daemon was running.
+  - A Homebrew / mise install cannot be re-registered by maz (it does not run
+    the package manager), so `maz upgrade` prints `maz daemon install` as the
+    follow-up and the formula's `caveats` says the same.
+  - `maz doctor` reports the blocked state as a FAIL on `daemon.launchd` with a
+    safe remediation; `maz doctor fix` (or `maz daemon install`) re-registers.
+    `maz daemon status` adds the same hint when the daemon is not running.
+  - Nothing re-registers implicitly from other commands: they fall back to
+    in-process execution when the daemon is down, so a silent launchd mutation
+    from a read-only command is not worth the surprise.
+- **launchctl races.** `launchctl bootout` returns before launchd finishes
+  tearing the job down, and a bootstrap in that window fails with
+  `Bootstrap failed: 5: Input/output error` (modern launchctl also reports an
+  already-loaded label that way). `maz daemon install` therefore checks
+  `launchctl print` first, boots out a loaded job and polls until it is gone
+  (up to 10 s), then bootstraps, retrying exit 5 with 0.5/1/2/4 s backoff.
+  `maz daemon uninstall` and the launchd path of `maz daemon stop` also wait
+  for the label to disappear, so an immediate reinstall works.
 - **`maz upgrade --check`** resolves and compares without downloading.
 
 ### Passive update-check

@@ -33,7 +33,11 @@ Writes ~/Library/LaunchAgents/io.mazarbul.daemon.plist and loads it, which
 starts the daemon now (RunAtLoad) and relaunches it on every login and
 after a crash (KeepAlive). Use 'maz daemon start' instead for a one-shot
 daemon that does not survive logout, or 'maz daemon uninstall' to remove
-the agent.`,
+the agent.
+
+Re-run it after replacing the maz binary outside 'maz upgrade' (for example
+'brew upgrade'): launchd pins the binary's code signature at install time and
+refuses to start a replaced binary until the agent is re-registered.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if runtime.GOOS != darwinGOOS {
 				return fmt.Errorf("maz daemon install is macOS-only (current: %s); use `maz daemon start` for a one-shot daemon", runtime.GOOS)

@@ -1,5 +1,7 @@
 package daemon
 
+import "strings"
+
 // OllamaLaunchAgentLabel is the launchd "Label" used in the plist and
 // in `launchctl list` lookups. Inverse-DNS per Apple convention; the
 // "io.mazarbul" prefix matches the binary and gives a stable, unique
@@ -113,4 +115,36 @@ type WatchFSLaunchAgentOptions struct {
 	LogPath        string
 	Home           string
 	Path           string
+}
+
+// LaunchAgentState is the launchd view of the daemon's launch agent, as
+// read by ReadLaunchAgentState. Declared on every build so `maz doctor`
+// and `maz daemon status` can consume it without a build tag; on
+// non-macOS builds it is always the zero value (nothing installed).
+//
+//   - Installed: the plist exists at LaunchAgentPlistPath.
+//   - Loaded: launchd has the label registered in the user domain.
+//   - PID: the running child's PID, 0 when no child is running.
+//   - State: launchd's top-level "state" line ("running", "spawn
+//     scheduled", "not running"), empty when not loaded.
+//   - LastExitReason: launchd's "last exit reason" line, e.g.
+//     "OS_REASON_CODESIGNING", empty when the job never exited.
+type LaunchAgentState struct {
+	Installed      bool
+	Loaded         bool
+	PID            int
+	State          string
+	LastExitReason string
+}
+
+// CodesignBlocked reports whether launchd refuses to spawn the daemon
+// because the binary's code signature no longer matches the launch
+// constraint launchd pinned when the agent was registered. This happens
+// after the maz binary is replaced in place (`brew upgrade`, the install
+// script, or `maz upgrade`): the job stays loaded in "spawn scheduled"
+// with last exit reason OS_REASON_CODESIGNING, and neither kickstart nor
+// KeepAlive recovers it. Re-registering (bootout, wait, bootstrap) does.
+func (s LaunchAgentState) CodesignBlocked() bool {
+	return s.Installed && s.Loaded && s.PID == 0 &&
+		strings.Contains(s.LastExitReason, "CODESIGNING")
 }
