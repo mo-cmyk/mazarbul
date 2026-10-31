@@ -4,35 +4,83 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 )
 
 // DefaultChain returns the standard read/write secret chain: environment
-// variables in front of the persistent store. The persistent store is a
-// directory-rooted FileProvider when EnvSecretsDir is set, otherwise the OS
-// keychain. The FileProvider path keeps a Mazarbul instance's secrets in an
-// isolated namespace so multiple brains or device profiles can coexist on one
-// host without colliding on the shared keychain. An invalid EnvSecretsDir
-// value falls back to the keychain rather than failing the process.
+// variables in front of the persistent store (see persistentStore).
 func DefaultChain() *Chain {
-	if dir := os.Getenv(EnvSecretsDir); dir != "" {
-		if fp, err := NewFileProvider(dir); err == nil {
-			return NewChain(NewEnvProvider(), fp)
-		}
-	}
-	return NewChain(NewEnvProvider(), NewKeychainProvider())
+	return NewChain(NewEnvProvider(), persistentStore())
 }
 
 // PersistentChain returns a write-targeted chain over the persistent store
-// only (no environment layer), honoring EnvSecretsDir the same way
-// DefaultChain does. Use it where a value must be written to the durable
-// store rather than satisfied by a read-only environment override.
+// only (no environment layer). Use it where a value must be written to the
+// durable store rather than satisfied by a read-only environment override.
 func PersistentChain() *Chain {
+	return NewChain(persistentStore())
+}
+
+// persistentStore picks the durable secret store:
+//
+//  1. A directory-rooted FileProvider when EnvSecretsDir is set. This keeps a
+//     Mazarbul instance's secrets in an isolated namespace so multiple brains
+//     or device profiles can coexist on one host without colliding on the
+//     shared keychain. An invalid value falls through to the next option.
+//  2. The OS keychain when it is reachable.
+//  3. A FileProvider under the user's state directory when the keychain is
+//     not reachable (a headless Linux server or container), so `maz` keeps
+//     working instead of failing every secret read. The files are 0600 in a
+//     0700 directory, the same protection EnvSecretsDir gives.
+//
+//nolint:ireturn // selects between two concrete stores at runtime.
+func persistentStore() Provider {
 	if dir := os.Getenv(EnvSecretsDir); dir != "" {
 		if fp, err := NewFileProvider(dir); err == nil {
-			return NewChain(fp)
+			return fp
 		}
 	}
-	return NewChain(NewKeychainProvider())
+	if !keychainReachable() {
+		if dir := headlessSecretsDir(); dir != "" {
+			if fp, err := NewFileProvider(dir); err == nil {
+				return fp
+			}
+		}
+	}
+	return NewKeychainProvider()
+}
+
+// keychainReachable reports whether the OS credential store can be used. On
+// macOS and Windows it always can. On Linux go-keyring talks to the Secret
+// Service over the D-Bus session bus and, when DBUS_SESSION_BUS_ADDRESS is
+// unset, tries to spawn dbus-launch; on a headless host neither exists and
+// every keychain call fails. A variable so tests can force either branch.
+//
+//nolint:gochecknoglobals // test seam over host detection.
+var keychainReachable = func() bool {
+	if runtime.GOOS != "linux" {
+		return true
+	}
+	if os.Getenv("DBUS_SESSION_BUS_ADDRESS") != "" {
+		return true
+	}
+	_, err := exec.LookPath("dbus-launch")
+	return err == nil
+}
+
+// headlessSecretsDir returns $XDG_STATE_HOME/mazarbul/secrets, defaulting
+// XDG_STATE_HOME to ~/.local/state. Empty when no home directory is known.
+func headlessSecretsDir() string {
+	base := os.Getenv("XDG_STATE_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil || home == "" {
+			return ""
+		}
+		base = filepath.Join(home, ".local", "state")
+	}
+	return filepath.Join(base, "mazarbul", "secrets")
 }
 
 // Chain composes multiple Providers into one. Reads consult each member in
